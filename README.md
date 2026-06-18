@@ -253,6 +253,19 @@ console.log(result.usage); // { promptTokens, completionTokens, totalTokens, cac
 
 Runnable references live in [`examples/`](./examples): a streaming chat server, a human-in-the-loop tool approval server, and a terminal coding agent.
 
+## Guides
+
+Deeper guides live in [`docs/`](./docs):
+
+- [Composition](./docs/composition.md) - compose, scope, model, when, tap, retry, inheritance, tracing
+- [Tools](./docs/tools.md) - definitions, Zod schemas, call limits, parallel execution, streaming tool events
+- [Threads](./docs/threads.md) - persistent history and custom storage (SQLite, Postgres, Redis)
+- [Schemas](./docs/schemas.md) - structured JSON output with plain schemas or Zod
+- [Tool Approval](./docs/approval.md) - SSE and CLI approval flows, event-driven approval
+- [Multimodal Input](./docs/multimodal.md) - images, PDFs, and audio across providers
+- [Helpers](./docs/helpers.md) - agentic loops, periodic extraction, conversation compression
+- [MCP Integration](./docs/mcp.md) - connect Model Context Protocol servers
+
 ## License
 
 ISC
