@@ -1,0 +1,14 @@
+{
+  "name": "tool-approval",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "@prsm/ai": "file:../..",
+    "express": "^5.1.0",
+    "zod": "^4.1.11"
+  }
+}

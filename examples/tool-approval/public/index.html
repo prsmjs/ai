@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@prsm/ai - tool approval</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <h1>tool approval</h1>
+    <p class="lede">
+      Each tool call pauses for human approval. The model waits on the
+      browser's decision before the tool runs, all over a single SSE stream.
+    </p>
+    <div id="messages"></div>
+    <div class="composer">
+      <input
+        id="input"
+        type="text"
+        placeholder="Type a message..."
+        value="What's the weather in Tokyo and Berlin?"
+      />
+      <button id="send">Send</button>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,54 @@
+{
+  "name": "@prsm/ai",
+  "version": "1.0.0",
+  "description": "Composable LLM inference with multi-provider support, tool execution, streaming, structured output, and approval workflows",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "files": [
+    "src",
+    "types"
+  ],
+  "scripts": {
+    "test": "vitest --reporter=verbose --run",
+    "test:watch": "vitest",
+    "test:live": "AI_LIVE=1 vitest --reporter=verbose --run",
+    "types": "tsc --declaration --allowJs --emitDeclarationOnly --skipLibCheck --target es2020 --module nodenext --moduleResolution nodenext --strict false --esModuleInterop true --outDir ./types src/index.js",
+    "prepublishOnly": "npm run types"
+  },
+  "author": "nvms",
+  "license": "ISC",
+  "engines": {
+    "node": ">=24"
+  },
+  "peerDependencies": {
+    "@huggingface/transformers": "^3.0.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@huggingface/transformers": {
+      "optional": true
+    },
+    "@modelcontextprotocol/sdk": {
+      "optional": true
+    },
+    "zod": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@huggingface/transformers": "^3.7.5",
+    "@modelcontextprotocol/sdk": "^1.18.2",
+    "@types/node": "^24.5.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "zod": "^4.1.11"
+  }
+}

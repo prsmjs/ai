@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@prsm/ai - basic chat</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <h1>basic chat</h1>
+    <p class="lede">
+      Assistant replies and tool-call lifecycle events stream in over SSE. Even
+      with streaming on, several tool calls can run in a single turn - watch the
+      tool lines appear as each one executes.
+    </p>
+    <div id="messages"></div>
+    <div class="composer">
+      <input
+        id="input"
+        type="text"
+        placeholder="Type a message..."
+        value="What's the weather in Osaka, Charlotte NC, and Nome Alaska?"
+      />
+      <button id="send">Send</button>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>

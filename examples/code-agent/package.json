@@ -1,0 +1,17 @@
+{
+  "name": "code-agent",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "code-agent": "./index.js"
+  },
+  "scripts": {
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "@prsm/ai": "file:../..",
+    "fast-glob": "^3.3.3",
+    "zod": "^4.1.11"
+  }
+}
