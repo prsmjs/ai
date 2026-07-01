@@ -40,6 +40,32 @@ describe("openai provider", () => {
     await expect(compose(model({ model: "openai/gpt-5.2" }))("hi")).rejects.toThrow(/rate limited/);
   });
 
+  it("sends the system prompt exactly once", async () => {
+    const calls = mockFetchSequence([openaiResponse({ content: "ok" })]);
+    await compose(model({ model: "openai/gpt-5.2", system: "be brief" }))("hi");
+    const systemMessages = calls[0].body.messages.filter((m) => m.role === "system");
+    expect(systemMessages).toEqual([{ role: "system", content: "be brief" }]);
+  });
+
+  it("emits tool_call_start before tool_call_delta when a chunk carries both", async () => {
+    const events = [];
+    mockFetchSequence([
+      sseResponse([
+        { choices: [{ delta: { tool_calls: [{ index: 0, id: "call_0", type: "function", function: { name: "get_weather", arguments: '{"city":"NYC"}' } }] } }] },
+        { choices: [{ delta: {} }], usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 } },
+      ]),
+      sseResponse([{ choices: [{ delta: { content: "done" } }] }]),
+    ]);
+
+    await compose(
+      scope({ tools: [tool(async () => "ok")], stream: (e) => events.push(e) }, model({ model: "openai/gpt-5.2" })),
+    )("go");
+
+    const types = events.map((e) => e.type);
+    expect(types.indexOf("tool_call_start")).toBeGreaterThanOrEqual(0);
+    expect(types.indexOf("tool_call_start")).toBeLessThan(types.indexOf("tool_call_delta"));
+  });
+
   it("assembles streamed content and tool-call chunks", async () => {
     const events = [];
     const stream = (e) => events.push(e);
@@ -146,6 +172,12 @@ describe("google provider", () => {
     await compose(model({ model: "google/gemini-x" }))("hi");
     expect(calls[0].url).toContain("key=g-key");
   });
+
+  it("returns an empty response instead of crashing when candidates lack content", async () => {
+    mockFetchSequence([jsonResponse({ candidates: [{ finishReason: "SAFETY" }], usageMetadata: {} })]);
+    const result = await compose(model({ model: "google/gemini-x" }))("hi");
+    expect(result.lastResponse.content).toBe("");
+  });
 });
 
 describe("xai provider", () => {
@@ -154,6 +186,35 @@ describe("xai provider", () => {
     const result = await compose(model({ model: "xai/grok-x" }))("hi");
     expect(calls[0].url).toBe("https://api.x.ai/v1/chat/completions");
     expect(result.lastResponse.content).toBe("grok says hi");
+  });
+
+  it("sends the system prompt exactly once", async () => {
+    const calls = mockFetchSequence([openaiResponse({ content: "ok" })]);
+    await compose(model({ model: "xai/grok-x", system: "be brief" }))("hi");
+    const systemMessages = calls[0].body.messages.filter((m) => m.role === "system");
+    expect(systemMessages).toEqual([{ role: "system", content: "be brief" }]);
+  });
+
+  it("emits incremental tool-call events while streaming", async () => {
+    const events = [];
+    mockFetchSequence([
+      sseResponse([
+        { choices: [{ delta: { tool_calls: [{ index: 0, id: "call_0", type: "function", function: { name: "get_weather", arguments: "" } }] } }] },
+        { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"city":"LA"}' } }] } }] },
+        { choices: [{ delta: {} }], usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 } },
+      ]),
+      sseResponse([{ choices: [{ delta: { content: "done" } }] }]),
+    ]);
+
+    const execute = vi.fn(async () => "sunny");
+    await compose(
+      scope({ tools: [tool(execute)], stream: (e) => events.push(e) }, model({ model: "xai/grok-x" })),
+    )("weather in LA?");
+
+    expect(execute).toHaveBeenCalledWith({ city: "LA" });
+    expect(events.map((e) => e.type)).toEqual(
+      expect.arrayContaining(["tool_call_start", "tool_call_delta", "tool_calls_ready"]),
+    );
   });
 });
 

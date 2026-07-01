@@ -145,6 +145,22 @@ describe("scope inheritance", () => {
     expect(count).toBe(3);
   });
 
+  it("exits an unsatisfied until loop when the abort signal fires", async () => {
+    const controller = new AbortController();
+    let iterations = 0;
+
+    const out = await scope(
+      { until: () => false },
+      tap(() => {
+        iterations++;
+        if (iterations >= 3) controller.abort();
+      }),
+    )({ history: [], abortSignal: controller.signal });
+
+    expect(iterations).toBe(3);
+    expect(out.history).toEqual([]);
+  });
+
   it("propagates accumulated usage out of a silent scope", async () => {
     mockFetchSequence([openaiResponse({ content: "done", usage: { prompt_tokens: 7, completion_tokens: 3, total_tokens: 10 } })]);
     const out = await scope({ silent: true }, model({ model: "openai/gpt-5.2" }))({

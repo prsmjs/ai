@@ -144,14 +144,16 @@ const wasToolUsedInCurrentTurn = (ctx, toolName) => {
 
   if (lastUserIndex === -1) return false;
 
+  const usedIn = (msg) => !!msg?.tool_calls?.some((call) => call.function.name === toolName);
+
+  // check every assistant message in the turn, not just the final response -
+  // a turn that used the tool mid-loop usually ends with a plain text answer
   for (let i = lastUserIndex + 1; i < ctx.history.length; i++) {
     const msg = ctx.history[i];
-    if (msg.role === "assistant" && ctx.lastResponse?.tool_calls) {
-      return ctx.lastResponse.tool_calls.some((call) => call.function.name === toolName);
-    }
+    if (msg.role === "assistant" && usedIn(msg)) return true;
   }
 
-  return false;
+  return usedIn(ctx.lastResponse);
 };
 
 /**

@@ -34,11 +34,15 @@ const toXAIContent = (content) => {
   });
 };
 
+// system messages are carried separately as instructions, so drop them from
+// history to avoid sending the system prompt twice
 /**
  * @param {Message[]} history
  */
 const toXAIMessages = (history) =>
-  history.map((msg) => (msg.role === "user" ? { ...msg, content: toXAIContent(msg.content) } : msg));
+  history
+    .filter((msg) => msg.role !== "system")
+    .map((msg) => (msg.role === "user" ? { ...msg, content: toXAIContent(msg.content) } : msg));
 
 const appendToolCalls = (toolCalls, tcchunklist) => {
   for (const tcchunk of tcchunklist) {
@@ -188,6 +192,25 @@ const handleXAIStream = async (response, ctx) => {
 
           if (delta?.tool_calls) {
             toolCalls = appendToolCalls(toolCalls, delta.tool_calls);
+            for (const tcchunk of delta.tool_calls) {
+              const tc = toolCalls[tcchunk.index];
+              if (tcchunk.function?.name) {
+                ctx.stream?.({
+                  type: "tool_call_start",
+                  index: tcchunk.index,
+                  name: tc?.function?.name || "",
+                });
+              }
+              if (tcchunk.function?.arguments) {
+                ctx.stream?.({
+                  type: "tool_call_delta",
+                  index: tcchunk.index,
+                  name: tc?.function?.name || "",
+                  argumentDelta: tcchunk.function.arguments,
+                  argumentsSoFar: tc?.function?.arguments || "",
+                });
+              }
+            }
           }
         } catch {
           // skip invalid JSON lines

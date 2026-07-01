@@ -74,6 +74,23 @@ describe("appendToLastRequest", () => {
 });
 
 describe("toolNotUsedInNTurns", () => {
+  it("counts a turn as used when the tool ran mid-turn before a plain final answer", async () => {
+    const step = vi.fn(async (ctx) => ctx);
+    const trigger = toolNotUsedInNTurns({ toolName: "search", times: 1 }, step);
+
+    await trigger({
+      history: [
+        { role: "user", content: "find me something" },
+        { role: "assistant", content: "", tool_calls: [{ id: "c1", function: { name: "search", arguments: "{}" } }] },
+        { role: "tool", tool_call_id: "c1", content: '"found it"' },
+        { role: "assistant", content: "here you go" },
+      ],
+      lastResponse: { role: "assistant", content: "here you go" },
+    });
+
+    expect(step).not.toHaveBeenCalled();
+  });
+
   it("fires the step after a tool goes unused for the given number of turns", async () => {
     const step = vi.fn(async (ctx) => ctx);
     const trigger = toolNotUsedInNTurns({ toolName: "search", times: 2 }, step);

@@ -91,9 +91,11 @@ export const scope = (config, ...steps) => async (ctx) => {
   let scopedCtx = scopeContext(config, ctx);
 
   if (config.until) {
+    // the abort check matters: steps that bail early on an aborted signal make
+    // no progress, so without it an unsatisfied until predicate spins forever
     do {
       scopedCtx = await compose(...steps)(scopedCtx);
-    } while (!config.until(scopedCtx));
+    } while (!config.until(scopedCtx) && !scopedCtx.abortSignal?.aborted);
   } else {
     scopedCtx = await compose(...steps)(scopedCtx);
   }

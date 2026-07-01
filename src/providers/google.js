@@ -147,7 +147,8 @@ export const callGoogle = async (config, ctx) => {
   }
 
   const data = await response.json();
-  const parts = data.candidates[0].content.parts || [];
+  // candidates can be empty or content missing entirely (e.g. safety blocks)
+  const parts = data.candidates?.[0]?.content?.parts || [];
 
   /** @type {Message & { tool_calls?: any[] }} */
   const msg = { role: "assistant", content: "" };
