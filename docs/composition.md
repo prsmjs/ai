@@ -70,6 +70,17 @@ const result = await model({
 
 The model string is split on the first `/`. Here `openai` selects the OpenAI-compatible provider, and the rest (`anthropic/claude-sonnet-4-5`) is passed as the `model` field in the request body. This works with any OpenAI-compatible API like OpenRouter, Azure, or a local proxy. The `local`, `lmstudio`, and `ollama` prefixes are shortcuts for this with a localhost base URL baked in.
 
+### With an output token cap
+
+```js
+const result = await model({
+  model: "anthropic/claude-sonnet-4-5",
+  maxTokens: 32000,
+})("write a long report");
+```
+
+When `maxTokens` is unset, no cap is sent and the provider's own limits apply. Anthropic is the exception: its API requires `max_tokens` on every request, so the default is 8192 - raise it for longer outputs.
+
 ### With a system message
 
 ```js

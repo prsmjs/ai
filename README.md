@@ -71,6 +71,12 @@ model({ model: "xai/grok-4" });
 
 API keys resolve in this order: `config.apiKey`, then `setKeys()`, then environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`).
 
+Cap output length with `maxTokens`. When unset, no cap is sent and the provider's own limits apply - except Anthropic, whose API requires `max_tokens` on every request and defaults to 8192 here:
+
+```js
+model({ model: "anthropic/claude-sonnet-4-5", maxTokens: 32000 });
+```
+
 ### Local and OpenAI-compatible endpoints
 
 Anything that speaks the OpenAI chat completions API works. LM Studio, Ollama, and bare local servers have built-in prefixes, and an explicit `baseUrl` overrides the default for any of them:
@@ -203,7 +209,7 @@ const result = await compose(
 )("delete all inactive users");
 ```
 
-For event-driven approval (for example, a server that waits on a browser POST), omit `approvalCallback` and resolve the request out of band with `onApprovalRequested` and `resolveApproval`. See `examples/tool-approval`.
+For event-driven approval (for example, a server that waits on a browser POST), omit `approvalCallback` and resolve the request out of band with `onApprovalRequested` and `resolveApproval`. See `examples/tool-approval`. Register the listener before generating - if approval is required and nothing can resolve it, the workflow throws instead of waiting forever.
 
 ## Tracing
 

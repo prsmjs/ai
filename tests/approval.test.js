@@ -82,6 +82,23 @@ describe("tool approval", () => {
     expect(order).toEqual(["1", "2"]);
   });
 
+  it("fails fast when approval is required but nothing can resolve it", async () => {
+    mockFetchSequence([
+      openaiResponse({ toolCalls: [{ name: "delete_user", args: { id: "1" } }] }),
+    ]);
+    const execute = vi.fn();
+
+    await expect(
+      compose(
+        scope(
+          { tools: [deleteTool(execute)], toolConfig: { requireApproval: true } },
+          model({ model: "openai/gpt-5.2" }),
+        ),
+      )("delete user 1"),
+    ).rejects.toThrow(/nothing can resolve it/);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it("resolves an event-driven approval through resolveApproval", async () => {
     mockFetchSequence([
       openaiResponse({ toolCalls: [{ name: "delete_user", args: { id: "1" } }] }),

@@ -31,12 +31,29 @@ const formatMessages = (instructions, history) => {
  * @returns {Promise<ConversationContext>}
  */
 export const callHuggingFace = async (config, ctx) => {
-  const { model, instructions, schema } = config;
+  const { model, instructions, schema, maxTokens } = config;
 
-  const { pipeline } = await import("@huggingface/transformers");
+  let pipeline;
+  try {
+    ({ pipeline } = await import("@huggingface/transformers"));
+  } catch {
+    throw new Error(
+      `Local inference for "${model}" requires the optional peer dependency ` +
+        "@huggingface/transformers - install it, or use a hosted provider prefix " +
+        "(openai/, anthropic/, google/, xai/, ollama/, lmstudio/, local/)",
+    );
+  }
 
   if (!modelCache.has(model)) {
-    modelCache.set(model, await pipeline("text-generation", model, { dtype: "q4" }));
+    try {
+      modelCache.set(model, await pipeline("text-generation", model, { dtype: "q4" }));
+    } catch (e) {
+      throw new Error(
+        `Failed to load "${model}" as a local HuggingFace model: ${e.message}. ` +
+          "If you meant a hosted provider, prefix the model with one of " +
+          "openai/, anthropic/, google/, xai/, ollama/, lmstudio/, local/",
+      );
+    }
   }
 
   const generator = modelCache.get(model);
@@ -57,7 +74,7 @@ export const callHuggingFace = async (config, ctx) => {
     }
   }
 
-  const output = await generator(messages, { max_new_tokens: 2048, do_sample: false });
+  const output = await generator(messages, { max_new_tokens: maxTokens ?? 2048, do_sample: false });
   const generatedMessages = output[0].generated_text;
   const content = generatedMessages.at(-1)?.content || "";
 

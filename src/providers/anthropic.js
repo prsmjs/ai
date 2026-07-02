@@ -113,7 +113,7 @@ const convertToAnthropicFormat = (messages) => {
  * @returns {Promise<ConversationContext>}
  */
 export const callAnthropic = async (config, ctx) => {
-  const { model, instructions, schema, apiKey: configApiKey } = config;
+  const { model, instructions, schema, apiKey: configApiKey, maxTokens } = config;
   const apiKey = getApiKey(configApiKey);
 
   let system = instructions;
@@ -133,7 +133,9 @@ export const callAnthropic = async (config, ctx) => {
     system = system ? system + schemaPrompt : schemaPrompt.slice(2);
   }
 
-  const body = { model, messages, max_tokens: 4096, stream: !!ctx.stream };
+  // the messages API requires max_tokens. 8192 is safe on every current claude
+  // model without triggering the must-stream threshold; raise it via maxTokens
+  const body = { model, messages, max_tokens: maxTokens ?? 8192, stream: !!ctx.stream };
   if (system) body.system = system;
 
   if (ctx.tools && ctx.tools.length > 0) {

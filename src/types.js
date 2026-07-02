@@ -139,6 +139,7 @@ export const Inherit = Object.freeze({
  * @property {JsonSchema} [schema]
  * @property {string} [apiKey]
  * @property {string} [baseUrl]
+ * @property {number} [maxTokens] cap on output tokens. omitted from the request when unset, except Anthropic where the API requires it (defaults to 8192)
  */
 
 /**

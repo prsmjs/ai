@@ -47,6 +47,23 @@ describe("openai provider", () => {
     expect(systemMessages).toEqual([{ role: "system", content: "be brief" }]);
   });
 
+  it("omits an output cap unless maxTokens is set, then uses max_completion_tokens", async () => {
+    const calls = mockFetchSequence([openaiResponse({ content: "a" }), openaiResponse({ content: "b" })]);
+    await compose(model({ model: "openai/gpt-5.2" }))("hi");
+    expect(calls[0].body).not.toHaveProperty("max_tokens");
+    expect(calls[0].body).not.toHaveProperty("max_completion_tokens");
+
+    await compose(model({ model: "openai/gpt-5.2", maxTokens: 500 }))("hi");
+    expect(calls[1].body.max_completion_tokens).toBe(500);
+  });
+
+  it("uses legacy max_tokens for OpenAI-compatible servers reached via baseUrl", async () => {
+    const calls = mockFetchSequence([openaiResponse({ content: "local" })]);
+    await compose(model({ model: "ollama/llama3", maxTokens: 300 }))("hi");
+    expect(calls[0].body.max_tokens).toBe(300);
+    expect(calls[0].body).not.toHaveProperty("max_completion_tokens");
+  });
+
   it("emits tool_call_start before tool_call_delta when a chunk carries both", async () => {
     const events = [];
     mockFetchSequence([
@@ -133,6 +150,18 @@ describe("anthropic provider", () => {
     expect(result.lastResponse.content).toBe("Done.");
   });
 
+  it("defaults max_tokens to 8192 and honors a maxTokens override", async () => {
+    const calls = mockFetchSequence([
+      anthropicResponse({ blocks: [{ type: "text", text: "a" }] }),
+      anthropicResponse({ blocks: [{ type: "text", text: "b" }] }),
+    ]);
+    await compose(model({ model: "anthropic/claude-x" }))("hi");
+    expect(calls[0].body.max_tokens).toBe(8192);
+
+    await compose(model({ model: "anthropic/claude-x", maxTokens: 32000 }))("hi");
+    expect(calls[1].body.max_tokens).toBe(32000);
+  });
+
   it("accumulates anthropic usage as input plus output tokens", async () => {
     mockFetchSequence([
       anthropicResponse({ blocks: [{ type: "text", text: "hi" }], usage: { input_tokens: 12, output_tokens: 8 } }),
@@ -173,6 +202,14 @@ describe("google provider", () => {
     expect(calls[0].url).toContain("key=g-key");
   });
 
+  it("maps maxTokens to generationConfig.maxOutputTokens", async () => {
+    const calls = mockFetchSequence([
+      jsonResponse({ candidates: [{ content: { parts: [{ text: "hi" }] } }], usageMetadata: {} }),
+    ]);
+    await compose(model({ model: "google/gemini-x", maxTokens: 1000 }))("hi");
+    expect(calls[0].body.generationConfig).toEqual({ maxOutputTokens: 1000 });
+  });
+
   it("returns an empty response instead of crashing when candidates lack content", async () => {
     mockFetchSequence([jsonResponse({ candidates: [{ finishReason: "SAFETY" }], usageMetadata: {} })]);
     const result = await compose(model({ model: "google/gemini-x" }))("hi");
@@ -193,6 +230,15 @@ describe("xai provider", () => {
     await compose(model({ model: "xai/grok-x", system: "be brief" }))("hi");
     const systemMessages = calls[0].body.messages.filter((m) => m.role === "system");
     expect(systemMessages).toEqual([{ role: "system", content: "be brief" }]);
+  });
+
+  it("omits an output cap unless maxTokens is set", async () => {
+    const calls = mockFetchSequence([openaiResponse({ content: "a" }), openaiResponse({ content: "b" })]);
+    await compose(model({ model: "xai/grok-x" }))("hi");
+    expect(calls[0].body).not.toHaveProperty("max_tokens");
+
+    await compose(model({ model: "xai/grok-x", maxTokens: 700 }))("hi");
+    expect(calls[1].body.max_tokens).toBe(700);
   });
 
   it("emits incremental tool-call events while streaming", async () => {

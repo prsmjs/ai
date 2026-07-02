@@ -188,6 +188,8 @@ scope({ tools: [deleteTool], toolConfig: { requireApproval: true } }, model());
 
 A listener that resolves synchronously inside the handler works correctly - the resolver is registered before the event fires.
 
+Register the listener before generating. If `requireApproval` is set with no `approvalCallback` and no registered listener, the workflow throws immediately rather than waiting on an approval nothing can resolve.
+
 ## CLI approval
 
 Interactive CLI approval, as in the `code-agent` example.

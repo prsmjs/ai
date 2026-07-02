@@ -25,6 +25,7 @@ const traced = (tracer, name, attributes, fn) =>
  *   system?: string | ((ctx: ConversationContext) => string),
  *   apiKey?: string,
  *   baseUrl?: string,
+ *   maxTokens?: number,
  *   tracer?: object,
  * }} [config]
  * @returns {ComposedFunction}
@@ -35,6 +36,7 @@ export const model = ({
   system,
   apiKey,
   baseUrl,
+  maxTokens,
   tracer,
 } = {}) => async (ctxOrMessage) => {
   const ctx =
@@ -73,7 +75,10 @@ export const model = ({
       `ai.generate:${model}`,
       { "ai.provider": provider, "ai.model": model },
       () =>
-        callProvider({ model, instructions, schema: normalizedSchema, apiKey, baseUrl }, currentCtx),
+        callProvider(
+          { model, instructions, schema: normalizedSchema, apiKey, baseUrl, maxTokens },
+          currentCtx,
+        ),
     );
 
     if (currentCtx.lastResponse?.tool_calls && currentCtx.tools?.length) {

@@ -117,7 +117,7 @@ const appendToolCalls = (toolCalls, tcchunklist) => {
  * @returns {Promise<ConversationContext>}
  */
 export const callOpenAI = async (config, ctx) => {
-  const { model, instructions, schema, apiKey: configApiKey, baseUrl } = config;
+  const { model, instructions, schema, apiKey: configApiKey, baseUrl, maxTokens } = config;
   const apiKey = getApiKey(configApiKey);
   const endpoint = baseUrl || "https://api.openai.com/v1";
 
@@ -127,12 +127,18 @@ export const callOpenAI = async (config, ctx) => {
   }
   messages.push(...toOpenAIMessages(ctx.history));
 
+  // openai's reasoning models reject the legacy max_tokens param, while local
+  // OpenAI-compatible servers universally understand it and may not know the
+  // newer name. pick by whether we're talking to api.openai.com
+  const maxTokensParam = baseUrl ? "max_tokens" : "max_completion_tokens";
+
   const body = {
     model,
     messages,
     stream: !!ctx.stream,
     ...(ctx.stream && { stream_options: { include_usage: true } }),
     ...(hasAudioPart(ctx.history) && { modalities: ["text"] }),
+    ...(maxTokens && { [maxTokensParam]: maxTokens }),
   };
 
   if (schema) {

@@ -78,7 +78,7 @@ const getApiKey = (configApiKey) => {
  * @returns {Promise<ConversationContext>}
  */
 export const callXAI = async (config, ctx) => {
-  const { model, instructions, schema, apiKey: configApiKey } = config;
+  const { model, instructions, schema, apiKey: configApiKey, maxTokens } = config;
   const apiKey = getApiKey(configApiKey);
 
   const messages = [];
@@ -92,6 +92,7 @@ export const callXAI = async (config, ctx) => {
     messages,
     stream: !!ctx.stream,
     ...(ctx.stream && { stream_options: { include_usage: true } }),
+    ...(maxTokens && { max_tokens: maxTokens }),
   };
 
   if (schema) {

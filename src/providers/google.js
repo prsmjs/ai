@@ -58,7 +58,7 @@ const randomId = () => Math.random().toString(36).substring(2, 9);
  * @returns {Promise<ConversationContext>}
  */
 export const callGoogle = async (config, ctx) => {
-  const { model, instructions, apiKey: configApiKey } = config;
+  const { model, instructions, apiKey: configApiKey, maxTokens } = config;
   const apiKey = getApiKey(configApiKey);
 
   const contents = [];
@@ -110,6 +110,10 @@ export const callGoogle = async (config, ctx) => {
   }
 
   const body = { contents };
+
+  if (maxTokens) {
+    body.generationConfig = { maxOutputTokens: maxTokens };
+  }
 
   if (instructions) {
     body.systemInstruction = { parts: [{ text: instructions }] };

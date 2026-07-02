@@ -33,6 +33,13 @@ export const generateApprovalToken = () =>
  * @returns {Promise<ApprovalResponse>}
  */
 export const requestApproval = async (toolCall, approvalId) => {
+  if (state.emitter.listenerCount("approvalRequested") === 0) {
+    throw new Error(
+      "Tool approval requested but nothing can resolve it: provide an approvalCallback " +
+        "in toolConfig or register a listener with onApprovalRequested() before generating",
+    );
+  }
+
   const id = generateApprovalToken();
   /** @type {ApprovalRequest} */
   const request = { id, toolCall, approvalId };
