@@ -116,8 +116,10 @@ const appendToolCalls = (toolCalls, tcchunklist) => {
  * @param {ConversationContext} ctx
  * @returns {Promise<ConversationContext>}
  */
+const REASONING_EFFORTS = { low: "low", medium: "medium", high: "high", max: "high" };
+
 export const callOpenAI = async (config, ctx) => {
-  const { model, instructions, schema, apiKey: configApiKey, baseUrl, maxTokens } = config;
+  const { model, instructions, schema, apiKey: configApiKey, baseUrl, maxTokens, effort } = config;
   const apiKey = getApiKey(configApiKey);
   const endpoint = baseUrl || "https://api.openai.com/v1";
 
@@ -139,6 +141,7 @@ export const callOpenAI = async (config, ctx) => {
     ...(ctx.stream && { stream_options: { include_usage: true } }),
     ...(hasAudioPart(ctx.history) && { modalities: ["text"] }),
     ...(maxTokens && { [maxTokensParam]: maxTokens }),
+    ...(REASONING_EFFORTS[effort] && !baseUrl && { reasoning_effort: REASONING_EFFORTS[effort] }),
   };
 
   if (schema) {

@@ -26,6 +26,7 @@ const traced = (tracer, name, attributes, fn) =>
  *   apiKey?: string,
  *   baseUrl?: string,
  *   maxTokens?: number,
+ *   effort?: "low" | "medium" | "high" | "max",
  *   tracer?: object,
  * }} [config]
  * @returns {ComposedFunction}
@@ -37,6 +38,7 @@ export const model = ({
   apiKey,
   baseUrl,
   maxTokens,
+  effort,
   tracer,
 } = {}) => async (ctxOrMessage) => {
   const ctx =
@@ -76,7 +78,7 @@ export const model = ({
       { "ai.provider": provider, "ai.model": model },
       () =>
         callProvider(
-          { model, instructions, schema: normalizedSchema, apiKey, baseUrl, maxTokens },
+          { model, instructions, schema: normalizedSchema, apiKey, baseUrl, maxTokens, effort },
           currentCtx,
         ),
     );

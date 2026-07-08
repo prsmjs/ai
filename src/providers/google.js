@@ -57,8 +57,10 @@ const randomId = () => Math.random().toString(36).substring(2, 9);
  * @param {ConversationContext} ctx
  * @returns {Promise<ConversationContext>}
  */
+const THINKING_BUDGETS = { low: 1024, medium: 8192, high: 16384, max: 24576 };
+
 export const callGoogle = async (config, ctx) => {
-  const { model, instructions, apiKey: configApiKey, maxTokens } = config;
+  const { model, instructions, apiKey: configApiKey, maxTokens, effort } = config;
   const apiKey = getApiKey(configApiKey);
 
   const contents = [];
@@ -113,8 +115,13 @@ export const callGoogle = async (config, ctx) => {
 
   const body = { contents };
 
-  if (maxTokens) {
-    body.generationConfig = { maxOutputTokens: maxTokens };
+  if (maxTokens || THINKING_BUDGETS[effort]) {
+    body.generationConfig = {
+      ...(maxTokens && { maxOutputTokens: maxTokens }),
+      ...(THINKING_BUDGETS[effort] && {
+        thinkingConfig: { thinkingBudget: THINKING_BUDGETS[effort] },
+      }),
+    };
   }
 
   if (instructions) {

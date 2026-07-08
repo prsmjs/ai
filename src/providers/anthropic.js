@@ -112,8 +112,10 @@ const convertToAnthropicFormat = (messages) => {
  * @param {ConversationContext} ctx
  * @returns {Promise<ConversationContext>}
  */
+const THINKING_BUDGETS = { low: 2048, medium: 8192, high: 16384, max: 32000 };
+
 export const callAnthropic = async (config, ctx) => {
-  const { model, instructions, schema, apiKey: configApiKey, maxTokens } = config;
+  const { model, instructions, schema, apiKey: configApiKey, maxTokens, effort } = config;
   const apiKey = getApiKey(configApiKey);
 
   let system = instructions;
@@ -135,7 +137,15 @@ export const callAnthropic = async (config, ctx) => {
 
   // the messages API requires max_tokens. 8192 is safe on every current claude
   // model without triggering the must-stream threshold; raise it via maxTokens
-  const body = { model, messages, max_tokens: maxTokens ?? 8192, stream: !!ctx.stream };
+  const budget = THINKING_BUDGETS[effort];
+  const body = {
+    model,
+    messages,
+    // thinking budget must be strictly below max_tokens, so leave room above it
+    max_tokens: budget ? Math.max(maxTokens ?? 8192, budget + 8192) : maxTokens ?? 8192,
+    stream: !!ctx.stream,
+  };
+  if (budget) body.thinking = { type: "enabled", budget_tokens: budget };
   if (system) body.system = system;
 
   if (ctx.tools && ctx.tools.length > 0) {
