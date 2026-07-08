@@ -96,7 +96,9 @@ export const callGoogle = async (config, ctx) => {
           } catch {
             responseData = { result: toolMsg.content };
           }
-          if (Array.isArray(responseData)) responseData = { result: responseData };
+          if (Array.isArray(responseData) || typeof responseData !== "object" || responseData === null) {
+            responseData = { result: responseData };
+          }
           responseParts.push({ functionResponse: { name: functionName, response: responseData } });
         }
         i++;
