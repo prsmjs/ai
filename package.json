@@ -1,6 +1,6 @@
 {
   "name": "@prsm/ai",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Composable LLM inference with multi-provider support, tool execution, streaming, structured output, and approval workflows",
   "type": "module",
   "main": "./src/index.js",
