@@ -76,16 +76,18 @@ describe("addUsage", () => {
       completionTokens: 2,
       totalTokens: 3,
       cachedTokens: 4,
+      thoughtTokens: 0,
     });
   });
 
   it("accumulates onto existing usage", () => {
-    const a = addUsage(undefined, 10, 5, 15, 2);
-    expect(addUsage(a, 1, 1, 2, 1)).toEqual({
+    const a = addUsage(undefined, 10, 5, 15, 2, 4);
+    expect(addUsage(a, 1, 1, 2, 1, 2)).toEqual({
       promptTokens: 11,
       completionTokens: 6,
       totalTokens: 17,
       cachedTokens: 3,
+      thoughtTokens: 6,
     });
   });
 });

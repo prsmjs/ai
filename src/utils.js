@@ -172,9 +172,10 @@ export const message = (text, opts) => {
  * @param {number} [cachedTokens]
  * @returns {TokenUsage}
  */
-export const addUsage = (existing, promptTokens, completionTokens, totalTokens, cachedTokens = 0) => ({
+export const addUsage = (existing, promptTokens, completionTokens, totalTokens, cachedTokens = 0, thoughtTokens = 0) => ({
   promptTokens: (existing?.promptTokens || 0) + promptTokens,
   completionTokens: (existing?.completionTokens || 0) + completionTokens,
   totalTokens: (existing?.totalTokens || 0) + totalTokens,
   cachedTokens: (existing?.cachedTokens || 0) + cachedTokens,
+  thoughtTokens: (existing?.thoughtTokens || 0) + thoughtTokens,
 });

@@ -119,7 +119,7 @@ export const callGoogle = async (config, ctx) => {
     body.generationConfig = {
       ...(maxTokens && { maxOutputTokens: maxTokens }),
       ...(THINKING_BUDGETS[effort] && {
-        thinkingConfig: { thinkingBudget: THINKING_BUDGETS[effort] },
+        thinkingConfig: { thinkingBudget: THINKING_BUDGETS[effort], includeThoughts: true },
       }),
     };
   }
@@ -168,6 +168,7 @@ export const callGoogle = async (config, ctx) => {
   const toolCalls = [];
 
   for (const part of parts) {
+    if (part.text && part.thought) continue;
     if (part.text) msg.content += part.text;
     if (part.functionCall) {
       const tc = {
@@ -191,9 +192,10 @@ export const callGoogle = async (config, ctx) => {
     usage: addUsage(
       ctx.usage,
       um?.promptTokenCount || 0,
-      um?.candidatesTokenCount || 0,
+      (um?.candidatesTokenCount || 0) + (um?.thoughtsTokenCount || 0),
       um?.totalTokenCount || 0,
       um?.cachedContentTokenCount || 0,
+      um?.thoughtsTokenCount || 0,
     ),
   };
 };
@@ -236,6 +238,10 @@ const handleGoogleStream = async (response, ctx) => {
           const parts = parsed.candidates?.[0]?.content?.parts || [];
 
           for (const part of parts) {
+            if (part?.text && part.thought) {
+              ctx.stream?.({ type: "thinking", content: part.text });
+              continue;
+            }
             if (part?.text) {
               fullContent += part.text;
               ctx.stream?.({ type: "content", content: part.text });
@@ -271,9 +277,10 @@ const handleGoogleStream = async (response, ctx) => {
   const usage = addUsage(
     ctx.usage,
     um?.promptTokenCount || 0,
-    um?.candidatesTokenCount || 0,
+    (um?.candidatesTokenCount || 0) + (um?.thoughtsTokenCount || 0),
     um?.totalTokenCount || 0,
     um?.cachedContentTokenCount || 0,
+    um?.thoughtsTokenCount || 0,
   );
 
   if (ctx.stream && um) {

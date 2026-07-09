@@ -199,6 +199,7 @@ export const callOpenAI = async (config, ctx) => {
       data.usage?.completion_tokens || 0,
       data.usage?.total_tokens || 0,
       data.usage?.prompt_tokens_details?.cached_tokens || 0,
+      data.usage?.completion_tokens_details?.reasoning_tokens || 0,
     ),
   };
 };
@@ -239,6 +240,10 @@ const handleOpenAIStream = async (response, ctx) => {
           if (parsed.usage) streamUsage = parsed.usage;
 
           const delta = parsed.choices?.[0]?.delta;
+
+          if (delta?.reasoning_content) {
+            ctx.stream?.({ type: "thinking", content: delta.reasoning_content });
+          }
 
           if (delta?.content) {
             fullContent += delta.content;
@@ -288,6 +293,7 @@ const handleOpenAIStream = async (response, ctx) => {
     streamUsage?.completion_tokens || 0,
     streamUsage?.total_tokens || 0,
     streamUsage?.prompt_tokens_details?.cached_tokens || 0,
+    streamUsage?.completion_tokens_details?.reasoning_tokens || 0,
   );
 
   if (ctx.stream && streamUsage) {

@@ -68,6 +68,9 @@ const convertToAnthropicFormat = (messages) => {
     }
 
     if (msg.role === "assistant") {
+      // thinking blocks must be replayed verbatim (signature included) or the
+      // API rejects tool-use continuations of extended-thinking turns
+      const thinking = Array.isArray(msg._thinking) ? msg._thinking : [];
       if (msg.tool_calls) {
         const content = msg.tool_calls.map((tc) => ({
           type: "tool_use",
@@ -78,6 +81,12 @@ const convertToAnthropicFormat = (messages) => {
         // preserve any assistant text that accompanied the tool calls
         if (typeof msg.content === "string" && msg.content) {
           content.unshift({ type: "text", text: msg.content });
+        }
+        result.push({ role: "assistant", content: [...thinking, ...content] });
+      } else if (thinking.length > 0) {
+        const content = [...thinking];
+        if (typeof msg.content === "string" && msg.content) {
+          content.push({ type: "text", text: msg.content });
         }
         result.push({ role: "assistant", content });
       } else {
@@ -181,9 +190,12 @@ export const callAnthropic = async (config, ctx) => {
   // tool_use). accumulate text and collect every tool call, not just the first
   let content = "";
   const toolCalls = [];
+  const thinkingBlocks = [];
   for (const block of data.content || []) {
     if (block.type === "text") {
       content += block.text;
+    } else if (block.type === "thinking" || block.type === "redacted_thinking") {
+      thinkingBlocks.push(block);
     } else if (block.type === "tool_use") {
       toolCalls.push({
         id: block.id,
@@ -197,6 +209,9 @@ export const callAnthropic = async (config, ctx) => {
   const msg = { role: "assistant", content };
   if (toolCalls.length > 0) {
     msg.tool_calls = toolCalls;
+  }
+  if (thinkingBlocks.length > 0) {
+    msg._thinking = thinkingBlocks;
   }
 
   const inputTokens = data.usage?.input_tokens || 0;
@@ -222,6 +237,8 @@ const handleAnthropicStream = async (response, ctx) => {
 
   let fullContent = "";
   const toolCalls = [];
+  const thinkingBlocks = [];
+  let currentThinking = null;
   let buffer = "";
   let inputTokens = 0;
   let outputTokens = 0;
@@ -258,6 +275,24 @@ const handleAnthropicStream = async (response, ctx) => {
           if (parsed.type === "content_block_delta" && parsed.delta?.text) {
             fullContent += parsed.delta.text;
             ctx.stream?.({ type: "content", content: parsed.delta.text });
+          }
+
+          if (parsed.type === "content_block_start" && parsed.content_block?.type === "thinking") {
+            currentThinking = { type: "thinking", thinking: "", signature: "" };
+          }
+          if (parsed.type === "content_block_start" && parsed.content_block?.type === "redacted_thinking") {
+            thinkingBlocks.push(parsed.content_block);
+          }
+          if (parsed.type === "content_block_delta" && parsed.delta?.type === "thinking_delta") {
+            if (currentThinking) currentThinking.thinking += parsed.delta.thinking;
+            ctx.stream?.({ type: "thinking", content: parsed.delta.thinking });
+          }
+          if (parsed.type === "content_block_delta" && parsed.delta?.type === "signature_delta") {
+            if (currentThinking) currentThinking.signature += parsed.delta.signature;
+          }
+          if (parsed.type === "content_block_stop" && currentThinking) {
+            thinkingBlocks.push(currentThinking);
+            currentThinking = null;
           }
 
           if (parsed.type === "content_block_start" && parsed.content_block?.type === "tool_use") {
@@ -300,6 +335,9 @@ const handleAnthropicStream = async (response, ctx) => {
   const msg = { role: "assistant", content: fullContent };
   if (toolCalls.length > 0) {
     msg.tool_calls = toolCalls.map(({ index, ...tc }) => tc);
+  }
+  if (thinkingBlocks.length > 0) {
+    msg._thinking = thinkingBlocks;
   }
 
   const usage = addUsage(ctx.usage, inputTokens, outputTokens, inputTokens + outputTokens, cachedTokens);
