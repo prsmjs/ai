@@ -26,7 +26,7 @@ const traced = (tracer, name, attributes, fn) =>
  *   apiKey?: string,
  *   baseUrl?: string,
  *   maxTokens?: number,
- *   effort?: "low" | "medium" | "high" | "max",
+ *   effort?: "auto" | "low" | "medium" | "high" | "max",
  *   tracer?: object,
  * }} [config]
  * @returns {ComposedFunction}

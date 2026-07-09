@@ -115,12 +115,14 @@ export const callGoogle = async (config, ctx) => {
 
   const body = { contents };
 
-  if (maxTokens || THINKING_BUDGETS[effort]) {
+  if (maxTokens || THINKING_BUDGETS[effort] || effort === "auto") {
     body.generationConfig = {
       ...(maxTokens && { maxOutputTokens: maxTokens }),
       ...(THINKING_BUDGETS[effort] && {
         thinkingConfig: { thinkingBudget: THINKING_BUDGETS[effort], includeThoughts: true },
       }),
+      // auto keeps the model's own dynamic budget but asks for thought summaries
+      ...(effort === "auto" && { thinkingConfig: { includeThoughts: true } }),
     };
   }
 
