@@ -4,6 +4,7 @@ import { callAnthropic } from "./anthropic.js";
 import { callGoogle } from "./google.js";
 import { callHuggingFace } from "./huggingface.js";
 import { callXAI } from "./xai.js";
+import { callCodex } from "./codex.js";
 
 /**
  * @typedef {import("../types.js").ConversationContext} ConversationContext
@@ -38,6 +39,8 @@ export const callProvider = async (config, ctx) => {
       return callGoogle(providerConfig, ctx);
     case "xai":
       return callXAI(providerConfig, ctx);
+    case "codex":
+      return callCodex(providerConfig, ctx);
     case "ollama":
     case "lmstudio":
     case "local":
