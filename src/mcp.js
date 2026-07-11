@@ -31,6 +31,16 @@ import { convertMCPSchemaToToolSchema } from "./schema.js";
  * @param {any} client
  * @returns {Promise<ToolConfig[]>}
  */
+// a tool that already namespaces itself (lore's lore_search) keeps its name
+// instead of stuttering into lore_lore_search; everything else gets the
+// server prefix so same-named tools from different servers cannot collide
+export const namespaced = (serverName, toolName) => {
+  const tool = toolName.toLowerCase();
+  const server = serverName.toLowerCase();
+  if (tool.startsWith(`${server}_`) || tool.startsWith(`${server}-`)) return toolName;
+  return `${serverName}_${toolName}`;
+};
+
 const buildTools = async (client) => {
   const serverName = client.getServerVersion()?.name;
 
@@ -40,7 +50,7 @@ const buildTools = async (client) => {
   }
 
   return (await client.listTools()).tools.map((mcpTool) => ({
-    name: `${serverName}_${mcpTool.name}`,
+    name: namespaced(serverName, mcpTool.name),
     description: `[${serverName}] ${mcpTool.description || ""}`,
     schema: convertMCPSchemaToToolSchema(mcpTool.inputSchema),
     execute: async (args) => {
