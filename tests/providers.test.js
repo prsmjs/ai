@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { z } from "zod";
 import { compose, scope, model, setKeys } from "../src/index.js";
 import { openaiResponse, jsonResponse, sseResponse, errorResponse, mockFetchSequence } from "./util.js";
 
@@ -33,6 +34,39 @@ describe("openai provider", () => {
     )("extract");
     expect(calls[0].body.response_format.type).toBe("json_schema");
     expect(calls[0].body.response_format.json_schema.strict).toBe(true);
+  });
+
+  it("makes optional structured output properties required and nullable", async () => {
+    const calls = mockFetchSequence([openaiResponse({ content: "{}" })]);
+    await compose(
+      model({
+        model: "openai/gpt-5.2",
+        schema: z.object({
+          name: z.string(),
+          address: z.string().nullish(),
+          details: z.object({ count: z.number().optional() }).optional(),
+        }),
+      }),
+    )("extract");
+
+    const schema = calls[0].body.response_format.json_schema.schema;
+    expect(schema.required).toEqual(["name", "address", "details"]);
+    expect(schema.properties.address.anyOf).toContainEqual({ type: "null" });
+    expect(schema.properties.details.anyOf).toContainEqual({ type: "null" });
+    const details = schema.properties.details.anyOf.find((branch) => branch.type === "object");
+    expect(details.required).toEqual(["count"]);
+    expect(details.properties.count.anyOf).toContainEqual({ type: "null" });
+  });
+
+  it("does not change schemas sent to other providers", async () => {
+    const calls = mockFetchSequence([jsonResponse({ content: [{ type: "text", text: "{}" }] })]);
+    await compose(
+      model({ model: "anthropic/claude-sonnet-4-5", schema: z.object({ name: z.string().optional() }) }),
+    )("extract");
+
+    const prompt = calls[0].body.system;
+    expect(prompt).not.toContain('"required": [');
+    expect(prompt).not.toContain('"type": "null"');
   });
 
   it("throws with the upstream error text on a non-ok response", async () => {
