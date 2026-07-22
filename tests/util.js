@@ -1,19 +1,30 @@
 import { vi } from "vitest";
 
-// build an OpenAI-shaped non-streaming chat completion response
 export const openaiResponse = ({ content = "", toolCalls, usage } = {}) => {
-  const message = { role: "assistant", content };
-  if (toolCalls) {
-    message.tool_calls = toolCalls.map((tc, i) => ({
-      id: tc.id || `call_${i}`,
-      type: "function",
-      function: { name: tc.name, arguments: JSON.stringify(tc.args ?? {}) },
-    }));
+  const events = [];
+  for (const [index, tc] of (toolCalls || []).entries()) {
+    const item = {
+      type: "function_call",
+      call_id: tc.id || `call_${index}`,
+      name: tc.name,
+      arguments: JSON.stringify(tc.args ?? {}),
+    };
+    events.push({ type: "response.output_item.done", output_index: index, item });
   }
-  return jsonResponse({
-    choices: [{ message }],
-    usage: usage || { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+  if (content) events.push({ type: "response.output_text.delta", delta: content });
+  const inputTokens = usage?.input_tokens ?? usage?.prompt_tokens ?? 10;
+  const outputTokens = usage?.output_tokens ?? usage?.completion_tokens ?? 5;
+  events.push({
+    type: "response.completed",
+    response: { usage: { input_tokens: inputTokens, output_tokens: outputTokens, total_tokens: usage?.total_tokens ?? inputTokens + outputTokens } },
   });
+  return sseResponse(events);
+};
+
+export const openaiChatResponse = ({ content = "", toolCalls, usage } = {}) => {
+  const message = { role: "assistant", content };
+  if (toolCalls) message.tool_calls = toolCalls.map((tc, i) => ({ id: tc.id || `call_${i}`, type: "function", function: { name: tc.name, arguments: JSON.stringify(tc.args ?? {}) } }));
+  return jsonResponse({ choices: [{ message }], usage: usage || { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } });
 };
 
 export const jsonResponse = (obj) =>

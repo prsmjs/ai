@@ -1,4 +1,5 @@
 import { addUsage, getKey } from "../utils.js";
+import { handleResponsesStream, toResponsesInput, toResponsesTools } from "./responses.js";
 
 /**
  * @typedef {import("../types.js").ConversationContext} ConversationContext
@@ -158,7 +159,7 @@ const toStrictSchema = (schema) => {
   return result;
 };
 
-export const callOpenAI = async (config, ctx) => {
+const callOpenAIChat = async (config, ctx) => {
   const { model, instructions, schema, apiKey: configApiKey, baseUrl, maxTokens, effort } = config;
   const apiKey = getApiKey(configApiKey);
   const endpoint = baseUrl || "https://api.openai.com/v1";
@@ -341,4 +342,54 @@ const handleOpenAIStream = async (response, ctx) => {
   }
 
   return { ...ctx, lastResponse: msg, history: [...ctx.history, msg], usage };
+};
+
+export const callOpenAI = async (config, ctx) => {
+  if (config.baseUrl) return callOpenAIChat(config, ctx);
+
+  const { model, instructions, schema, apiKey: configApiKey, maxTokens, effort } = config;
+  const apiKey = getApiKey(configApiKey);
+  const body = {
+    model,
+    instructions: instructions || "",
+    input: toResponsesInput(ctx.history),
+    store: false,
+    stream: true,
+    parallel_tool_calls: false,
+    ...(maxTokens && { max_output_tokens: maxTokens }),
+  };
+
+  if (ctx.tools && ctx.tools.length > 0) {
+    body.tools = toResponsesTools(ctx.tools);
+    body.tool_choice = "auto";
+  }
+  if (REASONING_EFFORTS[effort]) {
+    body.reasoning = { effort: REASONING_EFFORTS[effort], summary: "auto" };
+  }
+  if (schema) {
+    body.text = {
+      format: {
+        type: "json_schema",
+        name: schema.name,
+        schema: toStrictSchema(schema.schema),
+        strict: true,
+      },
+    };
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+      ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
+    },
+    body: JSON.stringify(body),
+    signal: ctx.abortSignal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI API error: ${await response.text()}`);
+  }
+  return handleResponsesStream(response, ctx, "OpenAI");
 };

@@ -28,9 +28,8 @@ describe("model tool loop", () => {
     expect(execute).toHaveBeenCalledWith({ city: "Paris" });
     expect(result.lastResponse.content).toBe("It is sunny in Paris.");
 
-    // the second request must include the tool result in its message history
-    const toolMsg = calls[1].body.messages.find((m) => m.role === "tool");
-    expect(JSON.parse(toolMsg.content)).toEqual({ city: "Paris", temp: "20C" });
+    const toolResult = calls[1].body.input.find((item) => item.type === "function_call_output");
+    expect(JSON.parse(toolResult.output)).toEqual({ city: "Paris", temp: "20C" });
   });
 
   it("accumulates usage across every model round-trip", async () => {
@@ -119,10 +118,7 @@ describe("model tool loop", () => {
     await compose(
       model({ model: "openai/gpt-5.2", system: (ctx) => `history has ${ctx.history.length} message(s)` }),
     )("hi");
-    expect(calls[0].body.messages[0]).toEqual({
-      role: "system",
-      content: "history has 1 message(s)",
-    });
+    expect(calls[0].body.instructions).toBe("history has 1 message(s)");
   });
 });
 
@@ -152,21 +148,10 @@ describe("model tracing", () => {
 
 // an OpenAI response whose tool call carries malformed JSON arguments
 function jsonResponseWithBadArgs() {
-  return new Response(
-    JSON.stringify({
-      choices: [
-        {
-          message: {
-            role: "assistant",
-            content: "",
-            tool_calls: [
-              { id: "call_0", type: "function", function: { name: "get_weather", arguments: "{bad json" } },
-            ],
-          },
-        },
-      ],
-      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-    }),
-    { status: 200 },
-  );
+  const item = { type: "function_call", call_id: "call_0", name: "get_weather", arguments: "{bad json" };
+  const events = [
+    { type: "response.output_item.done", output_index: 0, item },
+    { type: "response.completed", response: { usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } } },
+  ];
+  return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""), { status: 200 });
 }
