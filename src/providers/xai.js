@@ -1,4 +1,5 @@
 import { addUsage, getKey } from "../utils.js";
+import { toChatMessages } from "./chat-messages.js";
 
 /**
  * @typedef {import("../types.js").ConversationContext} ConversationContext
@@ -39,10 +40,7 @@ const toXAIContent = (content) => {
 /**
  * @param {Message[]} history
  */
-const toXAIMessages = (history) =>
-  history
-    .filter((msg) => msg.role !== "system")
-    .map((msg) => (msg.role === "user" ? { ...msg, content: toXAIContent(msg.content) } : msg));
+const toXAIMessages = (history) => toChatMessages(history, toXAIContent);
 
 const appendToolCalls = (toolCalls, tcchunklist) => {
   for (const tcchunk of tcchunklist) {

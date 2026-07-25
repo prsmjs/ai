@@ -77,6 +77,21 @@ describe("openai provider", () => {
     expect(calls[0].url).toBe("http://localhost:11434/v1/chat/completions");
     expect(calls[0].body.max_tokens).toBe(300);
   });
+
+  it("strips foreign provider metadata from Chat Completions history", async () => {
+    const calls = mockFetchSequence([openaiChatResponse({ content: "local" })]);
+    await model({ model: "ollama/llama3" })({
+      tools: [],
+      history: [
+        { role: "assistant", content: "checking", _thinking: [{ type: "thinking", signature: "secret" }], tool_calls: [{ id: "call-1", type: "function", thoughtSignature: "google-secret", function: { name: "read", arguments: "{}" } }] },
+        { role: "tool", content: "result", tool_call_id: "call-1", providerPrivate: true },
+      ],
+    });
+    expect(calls[0].body.messages).toEqual([
+      { role: "assistant", content: "checking", tool_calls: [{ id: "call-1", type: "function", function: { name: "read", arguments: "{}" } }] },
+      { role: "tool", content: "result", tool_call_id: "call-1" },
+    ]);
+  });
 });
 
 describe("anthropic provider", () => {
@@ -188,6 +203,17 @@ describe("xai provider", () => {
     const result = await compose(model({ model: "xai/grok-x" }))("hi");
     expect(calls[0].url).toBe("https://api.x.ai/v1/chat/completions");
     expect(result.lastResponse.content).toBe("grok says hi");
+  });
+
+  it("strips foreign provider metadata from history", async () => {
+    const calls = mockFetchSequence([openaiChatResponse({ content: "ok" })]);
+    await model({ model: "xai/grok-x" })({
+      tools: [],
+      history: [{ role: "assistant", content: "checking", _thinking: [{ signature: "secret" }], tool_calls: [{ id: "call-1", thoughtSignature: "google-secret", function: { name: "read", arguments: "{}" } }] }],
+    });
+    expect(calls[0].body.messages).toEqual([
+      { role: "assistant", content: "checking", tool_calls: [{ id: "call-1", type: "function", function: { name: "read", arguments: "{}" } }] },
+    ]);
   });
 
   it("sends the system prompt exactly once", async () => {

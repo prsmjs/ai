@@ -1,4 +1,5 @@
 import { addUsage, getKey } from "../utils.js";
+import { toChatMessages } from "./chat-messages.js";
 import { handleResponsesStream, toResponsesInput, toResponsesTools } from "./responses.js";
 
 /**
@@ -71,10 +72,7 @@ const toOpenAIContent = (content) => {
 /**
  * @param {Message[]} history
  */
-const toOpenAIMessages = (history) =>
-  history
-    .filter((msg) => msg.role !== "system")
-    .map((msg) => (msg.role === "user" ? { ...msg, content: toOpenAIContent(msg.content) } : msg));
+const toOpenAIMessages = (history) => toChatMessages(history, toOpenAIContent);
 
 /**
  * @param {Message[]} history
