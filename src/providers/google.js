@@ -1,4 +1,5 @@
 import { addUsage, getKey } from "../utils.js";
+import { request, transportOptions } from "./http.js";
 
 /**
  * @typedef {import("../types.js").ConversationContext} ConversationContext
@@ -143,14 +144,14 @@ export const callGoogle = async (config, ctx) => {
   }
 
   const endpoint = ctx.stream ? "streamGenerateContent" : "generateContent";
-  const response = await fetch(
+  const response = await request(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${apiKey}${ctx.stream ? "&alt=sse" : ""}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: ctx.abortSignal,
     },
+    transportOptions(config, ctx),
   );
 
   if (!response.ok) {

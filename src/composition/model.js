@@ -28,6 +28,8 @@ const traced = (tracer, name, attributes, fn) =>
  *   maxTokens?: number,
  *   effort?: "auto" | "low" | "medium" | "high" | "max",
  *   headers?: Record<string, string>,
+ *   timeoutMs?: number,
+ *   retries?: number,
  *   tracer?: object,
  * }} [config]
  * @returns {ComposedFunction}
@@ -41,6 +43,8 @@ export const model = ({
   maxTokens,
   effort,
   headers,
+  timeoutMs,
+  retries,
   tracer,
 } = {}) => async (ctxOrMessage) => {
   const ctx =
@@ -80,7 +84,7 @@ export const model = ({
       { "ai.provider": provider, "ai.model": model },
       () =>
         callProvider(
-          { model, instructions, schema: normalizedSchema, apiKey, baseUrl, maxTokens, effort, headers },
+          { model, instructions, schema: normalizedSchema, apiKey, baseUrl, maxTokens, effort, headers, timeoutMs, retries },
           currentCtx,
         ),
     );

@@ -141,6 +141,8 @@ export const Inherit = Object.freeze({
  * @property {string} [apiKey]
  * @property {string} [baseUrl]
  * @property {number} [maxTokens] cap on output tokens. omitted from the request when unset, except Anthropic where the API requires it (defaults to 8192)
+ * @property {number} [timeoutMs] deadline for one HTTP attempt, headers through body. default 10 minutes
+ * @property {number} [retries] extra attempts after a network failure, timeout, 408/409/425/429 or 5xx. default 2
  */
 
 /**

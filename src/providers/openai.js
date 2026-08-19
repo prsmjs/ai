@@ -1,4 +1,5 @@
 import { addUsage, getKey } from "../utils.js";
+import { request, transportOptions } from "./http.js";
 import { toChatMessages } from "./chat-messages.js";
 import { handleResponsesStream, toResponsesInput, toResponsesTools } from "./responses.js";
 
@@ -204,12 +205,11 @@ const callOpenAIChat = async (config, ctx) => {
     headers["Authorization"] = `Bearer ${apiKey}`;
   }
 
-  const response = await fetch(`${endpoint}/chat/completions`, {
+  const response = await request(`${endpoint}/chat/completions`, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
-    signal: ctx.abortSignal,
-  });
+  }, transportOptions(config, ctx));
 
   if (!response.ok) {
     throw new Error(`OpenAI API error: ${await response.text()}`);
@@ -375,7 +375,7 @@ export const callOpenAI = async (config, ctx) => {
     };
   }
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await request("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -383,8 +383,7 @@ export const callOpenAI = async (config, ctx) => {
       ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
     },
     body: JSON.stringify(body),
-    signal: ctx.abortSignal,
-  });
+  }, transportOptions(config, ctx));
 
   if (!response.ok) {
     throw new Error(`OpenAI API error: ${await response.text()}`);

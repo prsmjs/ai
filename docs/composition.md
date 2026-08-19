@@ -81,6 +81,18 @@ const result = await model({
 
 When `maxTokens` is unset, no cap is sent and the provider's own limits apply. Anthropic is the exception: its API requires `max_tokens` on every request, so the default is 8192 - raise it for longer outputs.
 
+### Timeout and retry
+
+```js
+const result = await model({
+  model: "anthropic/claude-sonnet-4-5",
+  timeoutMs: 5 * 60 * 1000,
+  retries: 3,
+})("...");
+```
+
+Every provider request has a deadline (`timeoutMs`, default 10 minutes, covering headers through the end of the body) and is retried with exponential backoff on a network failure, a timeout, or a 408/409/425/429/5xx response (`retries`, default 2, honoring `Retry-After`). A caller's `abortSignal` is never retried. Only the request is retried: once a streamed body has started reaching you, a drop surfaces as an error.
+
 ### With a system message
 
 ```js

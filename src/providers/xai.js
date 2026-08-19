@@ -1,4 +1,5 @@
 import { addUsage, getKey } from "../utils.js";
+import { request, transportOptions } from "./http.js";
 import { toChatMessages } from "./chat-messages.js";
 
 /**
@@ -109,12 +110,11 @@ export const callXAI = async (config, ctx) => {
     body.tool_choice = "auto";
   }
 
-  const response = await fetch("https://api.x.ai/v1/chat/completions", {
+  const response = await request("https://api.x.ai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify(body),
-    signal: ctx.abortSignal,
-  });
+  }, transportOptions(config, ctx));
 
   if (!response.ok) {
     throw new Error(`xAI API error: ${await response.text()}`);

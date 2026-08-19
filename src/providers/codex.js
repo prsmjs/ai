@@ -1,4 +1,5 @@
 import { handleResponsesStream, toResponsesInput, toResponsesTools } from "./responses.js";
+import { request, transportOptions } from "./http.js";
 
 /**
  * @typedef {import("../types.js").ConversationContext} ConversationContext
@@ -47,7 +48,7 @@ export const callCodex = async (config, ctx) => {
     ...(REASONING_EFFORTS[effort] && { effort: REASONING_EFFORTS[effort] }),
   };
 
-  const response = await fetch(`${baseUrl || DEFAULT_BASE_URL}/responses`, {
+  const response = await request(`${baseUrl || DEFAULT_BASE_URL}/responses`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -58,8 +59,7 @@ export const callCodex = async (config, ctx) => {
       ...headers,
     },
     body: JSON.stringify(body),
-    signal: ctx.abortSignal,
-  });
+  }, transportOptions(config, ctx));
 
   if (!response.ok) {
     throw new Error(`Codex API error: ${response.status} ${await response.text()}`);

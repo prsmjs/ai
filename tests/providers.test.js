@@ -67,8 +67,8 @@ describe("openai provider", () => {
   });
 
   it("throws with upstream error text", async () => {
-    mockFetchSequence([errorResponse(429, "rate limited")]);
-    await expect(compose(model({ model: "openai/gpt-5.2" }))("hi")).rejects.toThrow(/rate limited/);
+    mockFetchSequence([errorResponse(400, "bad request")]);
+    await expect(compose(model({ model: "openai/gpt-5.2" }))("hi")).rejects.toThrow(/bad request/);
   });
 
   it("keeps Chat Completions for compatible baseUrl providers", async () => {

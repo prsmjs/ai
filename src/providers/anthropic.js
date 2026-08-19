@@ -1,4 +1,5 @@
 import { addUsage, getKey } from "../utils.js";
+import { request, transportOptions } from "./http.js";
 
 /**
  * @typedef {import("../types.js").ConversationContext} ConversationContext
@@ -165,7 +166,7 @@ export const callAnthropic = async (config, ctx) => {
     }));
   }
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const response = await request("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -173,8 +174,7 @@ export const callAnthropic = async (config, ctx) => {
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify(body),
-    signal: ctx.abortSignal,
-  });
+  }, transportOptions(config, ctx));
 
   if (!response.ok) {
     throw new Error(`Anthropic API error: ${await response.text()}`);
