@@ -83,6 +83,7 @@ export const handleResponsesStream = async (response, ctx, errorLabel) => {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let fullContent = "";
+  let summaryParts = 0;
   const toolCalls = [];
   const toolCallIndexes = new Map();
   let usage = null;
@@ -114,6 +115,10 @@ export const handleResponsesStream = async (response, ctx, errorLabel) => {
         if (event.type === "response.output_text.delta" && event.delta) {
           fullContent += event.delta;
           ctx.stream?.({ type: "content", content: event.delta });
+        } else if (event.type === "response.reasoning_summary_part.added") {
+          // parts are standalone paragraphs; without this the next part's
+          // first word glues onto the previous one
+          if (summaryParts++ > 0) ctx.stream?.({ type: "thinking", content: "\n\n" });
         } else if (
           (event.type === "response.reasoning_summary_text.delta" || event.type === "response.reasoning_text.delta") &&
           event.delta
