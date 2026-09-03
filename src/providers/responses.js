@@ -79,10 +79,16 @@ export const toResponsesTools = (tools) =>
     strict: false,
   }));
 
+export const joinItemTexts = (items) => items.filter((text, i) => text && text !== items[i - 1]).join("");
+
 export const handleResponsesStream = async (response, ctx, errorLabel) => {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let fullContent = "";
+  // text is kept per output item: a response can carry several message
+  // items, and the final text of each comes from its done event when the
+  // server sends one, so duplicated deltas cannot double an item
+  const texts = new Map();
+  const itemKey = (event) => event.item_id ?? `index:${event.output_index}`;
   let summaryParts = 0;
   const toolCalls = [];
   const toolCallIndexes = new Map();
@@ -113,8 +119,11 @@ export const handleResponsesStream = async (response, ctx, errorLabel) => {
         }
 
         if (event.type === "response.output_text.delta" && event.delta) {
-          fullContent += event.delta;
+          const key = itemKey(event);
+          texts.set(key, (texts.get(key) || "") + event.delta);
           ctx.stream?.({ type: "content", content: event.delta });
+        } else if (event.type === "response.output_text.done" && typeof event.text === "string") {
+          texts.set(itemKey(event), event.text);
         } else if (event.type === "response.reasoning_summary_part.added") {
           // parts are standalone paragraphs; without this the next part's
           // first word glues onto the previous one
@@ -171,6 +180,9 @@ export const handleResponsesStream = async (response, ctx, errorLabel) => {
 
   if (failure) throw new Error(`${errorLabel} API error: ${failure}`);
 
+  // items join in order as before; an item repeating the one before it,
+  // which some models emit, is dropped
+  const fullContent = joinItemTexts([...texts.values()]);
   const msg = { role: "assistant", content: fullContent };
   if (toolCalls.length > 0) msg.tool_calls = toolCalls;
 
