@@ -9,6 +9,20 @@ const fast = { backoffMs: 1 };
 afterEach(() => vi.unstubAllGlobals());
 
 describe("request", () => {
+  it("sends every request over http/1.1, never a shared http/2 connection", async () => {
+    const calls = mockFetchSequence([() => new Response("ok", { status: 200 })]);
+    await request("https://x", { method: "POST" }, fast);
+    expect(calls[0].init.dispatcher).toBeDefined();
+    expect(calls[0].init.dispatcher.constructor.name).toBe("Agent");
+  });
+
+  it("lets a caller bring its own dispatcher", async () => {
+    const calls = mockFetchSequence([() => new Response("ok", { status: 200 })]);
+    const own = { dispatch() {} };
+    await request("https://x", { method: "POST", dispatcher: own }, fast);
+    expect(calls[0].init.dispatcher).toBe(own);
+  });
+
   it("retries a retryable status and returns the first good response", async () => {
     const calls = mockFetchSequence([
       () => errorResponse(503, "down"),

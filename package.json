@@ -54,5 +54,8 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/prsmjs/ai.git"
+  },
+  "dependencies": {
+    "undici": "^7.29.1"
   }
 }

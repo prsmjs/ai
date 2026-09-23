@@ -1,3 +1,5 @@
+import { Agent } from "undici";
+
 /**
  * @typedef {object} RequestOptions
  * @property {AbortSignal} [signal] caller's abort; never retried once it fires
@@ -5,6 +7,12 @@
  * @property {number} [retries] extra attempts after a retryable failure. default 2
  * @property {number} [backoffMs] first delay; doubles per attempt with jitter. default 500
  */
+
+// node 26's fetch negotiates http/2, and once a connection to a provider is
+// open every later request multiplexes onto it. openai streams responses on
+// one connection one at a time, so concurrent calls quietly run in series.
+// one connection per request is what the providers are built for
+const dispatcher = new Agent({ allowH2: false });
 
 export const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 export const DEFAULT_RETRIES = 2;
@@ -65,7 +73,7 @@ export const request = async (url, init, options = {}) => {
 
     let response;
     try {
-      response = await fetch(url, { ...init, signal: attemptSignal });
+      response = await fetch(url, { dispatcher, ...init, signal: attemptSignal });
     } catch (err) {
       if (attempt >= retries || !isRetryableError(err, signal)) throw err;
       await sleep(backoffFor(attempt, backoffMs), signal);
