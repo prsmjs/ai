@@ -178,4 +178,13 @@ export const addUsage = (existing, promptTokens, completionTokens, totalTokens, 
   totalTokens: (existing?.totalTokens || 0) + totalTokens,
   cachedTokens: (existing?.cachedTokens || 0) + cachedTokens,
   thoughtTokens: (existing?.thoughtTokens || 0) + thoughtTokens,
+  ...(existing?.cost != null && { cost: existing.cost }),
 });
+
+/**
+ * @param {TokenUsage} usage
+ * @param {number | undefined} cost
+ * @returns {TokenUsage}
+ */
+export const addCost = (usage, cost) =>
+  typeof cost === "number" ? { ...usage, cost: (usage.cost || 0) + cost } : usage;

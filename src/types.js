@@ -140,6 +140,8 @@ export const Inherit = Object.freeze({
  * @property {JsonSchema} [schema]
  * @property {string} [apiKey]
  * @property {string} [baseUrl]
+ * @property {"auto" | "low" | "medium" | "high" | "max"} [effort]
+ * @property {Record<string, string>} [headers] extra request headers, for providers that accept them (codex, openrouter)
  * @property {number} [maxTokens] cap on output tokens. omitted from the request when unset, except Anthropic where the API requires it (defaults to 8192)
  * @property {number} [timeoutMs] deadline for one HTTP attempt, headers through body. default 10 minutes
  * @property {number} [retries] extra attempts after a network failure, timeout, 408/409/425/429 or 5xx. default 2
@@ -181,6 +183,7 @@ export const Inherit = Object.freeze({
  * @property {number} totalTokens
  * @property {number} [cachedTokens]
  * @property {number} [thoughtTokens]
+ * @property {number} [cost] USD as billed by providers that report it (OpenRouter), summed over those calls only
  */
 
 export {};

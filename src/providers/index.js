@@ -5,6 +5,7 @@ import { callGoogle } from "./google.js";
 import { callHuggingFace } from "./huggingface.js";
 import { callXAI } from "./xai.js";
 import { callCodex } from "./codex.js";
+import { callOpenRouter } from "./openrouter.js";
 
 /**
  * @typedef {import("../types.js").ConversationContext} ConversationContext
@@ -41,6 +42,8 @@ export const callProvider = async (config, ctx) => {
       return callXAI(providerConfig, ctx);
     case "codex":
       return callCodex(providerConfig, ctx);
+    case "openrouter":
+      return callOpenRouter(providerConfig, ctx);
     case "ollama":
     case "lmstudio":
     case "local":

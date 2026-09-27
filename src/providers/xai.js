@@ -1,6 +1,7 @@
-import { addUsage, getKey } from "../utils.js";
-import { request, transportOptions } from "./http.js";
+import { getKey } from "../utils.js";
+import { transportOptions } from "./http.js";
 import { toChatMessages } from "./chat-messages.js";
+import { callChatCompletions } from "./chat-completions.js";
 
 /**
  * @typedef {import("../types.js").ConversationContext} ConversationContext
@@ -36,26 +37,6 @@ const toXAIContent = (content) => {
   });
 };
 
-// system messages are carried separately as instructions, so drop them from
-// history to avoid sending the system prompt twice
-/**
- * @param {Message[]} history
- */
-const toXAIMessages = (history) => toChatMessages(history, toXAIContent);
-
-const appendToolCalls = (toolCalls, tcchunklist) => {
-  for (const tcchunk of tcchunklist) {
-    while (toolCalls.length <= tcchunk.index) {
-      toolCalls.push({ id: "", type: "function", function: { name: "", arguments: "" } });
-    }
-    const tc = toolCalls[tcchunk.index];
-    tc.id += tcchunk.id || "";
-    tc.function.name += tcchunk.function?.name || "";
-    tc.function.arguments += tcchunk.function?.arguments || "";
-  }
-  return toolCalls;
-};
-
 /**
  * @param {string} [configApiKey]
  * @returns {string}
@@ -76,173 +57,32 @@ const getApiKey = (configApiKey) => {
  * @param {ConversationContext} ctx
  * @returns {Promise<ConversationContext>}
  */
-export const callXAI = async (config, ctx) => {
+export const callXAI = (config, ctx) => {
   const { model, instructions, schema, apiKey: configApiKey, maxTokens } = config;
   const apiKey = getApiKey(configApiKey);
 
-  const messages = [];
-  if (instructions) {
-    messages.push({ role: "system", content: instructions });
-  }
-  messages.push(...toXAIMessages(ctx.history));
+  const messages = [
+    ...(instructions ? [{ role: "system", content: instructions }] : []),
+    ...toChatMessages(ctx.history, { convertUserContent: toXAIContent }),
+  ];
 
   const body = {
     model,
     messages,
-    stream: !!ctx.stream,
-    ...(ctx.stream && { stream_options: { include_usage: true } }),
     ...(maxTokens && { max_tokens: maxTokens }),
-  };
-
-  if (schema) {
-    body.response_format = {
-      type: "json_schema",
-      json_schema: {
-        name: schema.name,
-        schema: { ...schema.schema, additionalProperties: false },
-        strict: true,
+    ...(schema && {
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: schema.name, schema: { ...schema.schema, additionalProperties: false }, strict: true },
       },
-    };
-  }
-
-  if (ctx.tools && ctx.tools.length > 0) {
-    body.tools = ctx.tools;
-    body.tool_choice = "auto";
-  }
-
-  const response = await request("https://api.x.ai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(body),
-  }, transportOptions(config, ctx));
-
-  if (!response.ok) {
-    throw new Error(`xAI API error: ${await response.text()}`);
-  }
-
-  if (ctx.stream) {
-    return handleXAIStream(response, ctx);
-  }
-
-  const data = await response.json();
-  const { message } = data.choices[0];
-
-  /** @type {Message & { tool_calls?: any[] }} */
-  const msg = { role: "assistant", content: message.content || "" };
-  if (message.tool_calls) {
-    msg.tool_calls = message.tool_calls;
-  }
-
-  return {
-    ...ctx,
-    lastResponse: msg,
-    history: [...ctx.history, msg],
-    usage: addUsage(
-      ctx.usage,
-      data.usage?.prompt_tokens || 0,
-      data.usage?.completion_tokens || 0,
-      data.usage?.total_tokens || 0,
-      data.usage?.prompt_tokens_details?.cached_tokens || 0,
-      data.usage?.completion_tokens_details?.reasoning_tokens || 0,
-    ),
+    }),
   };
-};
 
-/**
- * @param {Response} response
- * @param {ConversationContext} ctx
- * @returns {Promise<ConversationContext>}
- */
-const handleXAIStream = async (response, ctx) => {
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-
-  let fullContent = "";
-  let toolCalls = [];
-  let buffer = "";
-  let streamUsage = null;
-
-  try {
-    while (true) {
-      if (ctx.abortSignal?.aborted) break;
-
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6).trim();
-        if (data === "[DONE]" || !data) continue;
-
-        try {
-          const parsed = JSON.parse(data);
-
-          if (parsed.usage) streamUsage = parsed.usage;
-
-          const delta = parsed.choices?.[0]?.delta;
-
-          if (delta?.reasoning_content) {
-            ctx.stream?.({ type: "thinking", content: delta.reasoning_content });
-          }
-
-          if (delta?.content) {
-            fullContent += delta.content;
-            ctx.stream?.({ type: "content", content: delta.content });
-          }
-
-          if (delta?.tool_calls) {
-            toolCalls = appendToolCalls(toolCalls, delta.tool_calls);
-            for (const tcchunk of delta.tool_calls) {
-              const tc = toolCalls[tcchunk.index];
-              if (tcchunk.function?.name) {
-                ctx.stream?.({
-                  type: "tool_call_start",
-                  index: tcchunk.index,
-                  name: tc?.function?.name || "",
-                });
-              }
-              if (tcchunk.function?.arguments) {
-                ctx.stream?.({
-                  type: "tool_call_delta",
-                  index: tcchunk.index,
-                  name: tc?.function?.name || "",
-                  argumentDelta: tcchunk.function.arguments,
-                  argumentsSoFar: tc?.function?.arguments || "",
-                });
-              }
-            }
-          }
-        } catch {
-          // skip invalid JSON lines
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  /** @type {Message & { tool_calls?: any[] }} */
-  const msg = { role: "assistant", content: fullContent };
-  if (toolCalls.length > 0) {
-    msg.tool_calls = toolCalls;
-  }
-
-  const usage = addUsage(
-    ctx.usage,
-    streamUsage?.prompt_tokens || 0,
-    streamUsage?.completion_tokens || 0,
-    streamUsage?.total_tokens || 0,
-    streamUsage?.prompt_tokens_details?.cached_tokens || 0,
-    streamUsage?.completion_tokens_details?.reasoning_tokens || 0,
-  );
-
-  if (ctx.stream && streamUsage) {
-    ctx.stream({ type: "usage", usage });
-  }
-
-  return { ...ctx, lastResponse: msg, history: [...ctx.history, msg], usage };
+  return callChatCompletions({
+    url: "https://api.x.ai/v1/chat/completions",
+    label: "xAI",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body,
+    transport: transportOptions(config, ctx),
+  }, ctx);
 };

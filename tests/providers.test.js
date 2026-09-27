@@ -274,3 +274,104 @@ describe("local routing", () => {
     expect(calls[0].url).toBe("http://localhost:4321/v1/chat/completions");
   });
 });
+
+describe("openrouter provider", () => {
+  const withKey = () => setKeys({ openrouter: "or-key" });
+
+  it("posts chat completions to openrouter with the key and full model slug", async () => {
+    withKey();
+    const calls = mockFetchSequence([openaiChatResponse({ content: "routed" })]);
+    const result = await compose(model({ model: "openrouter/anthropic/claude-sonnet-5" }))("hi");
+    expect(calls[0].url).toBe("https://openrouter.ai/api/v1/chat/completions");
+    expect(calls[0].init.headers.Authorization).toBe("Bearer or-key");
+    expect(calls[0].body.model).toBe("anthropic/claude-sonnet-5");
+    expect(result.lastResponse.content).toBe("routed");
+  });
+
+  it("maps effort to the unified reasoning param and leaves auto to the model", async () => {
+    withKey();
+    const calls = mockFetchSequence([openaiChatResponse({ content: "a" }), openaiChatResponse({ content: "b" })]);
+    await compose(model({ model: "openrouter/x/y", effort: "max" }))("hi");
+    expect(calls[0].body.reasoning).toEqual({ effort: "max" });
+    await compose(model({ model: "openrouter/x/y", effort: "auto" }))("hi");
+    expect(calls[1].body).not.toHaveProperty("reasoning");
+  });
+
+  it("merges caller headers", async () => {
+    withKey();
+    const calls = mockFetchSequence([openaiChatResponse({ content: "a" })]);
+    await compose(model({ model: "openrouter/x/y", headers: { "X-Title": "pico" } }))("hi");
+    expect(calls[0].init.headers["X-Title"]).toBe("pico");
+  });
+
+  it("streams reasoning, stitches reasoning details by index, and replays them on the next round", async () => {
+    withKey();
+    const events = [];
+    const detail = (d) => ({ choices: [{ delta: { reasoning_details: [d], ...(d.text && { reasoning: d.text }) } }] });
+    const calls = mockFetchSequence([
+      sseResponse([
+        detail({ type: "reasoning.text", text: "need ", format: "anthropic-claude-v1", index: 0 }),
+        detail({ type: "reasoning.text", text: "weather", format: "anthropic-claude-v1", index: 0 }),
+        detail({ type: "reasoning.text", signature: "sig", format: "anthropic-claude-v1", index: 0 }),
+        { choices: [{ delta: { tool_calls: [{ index: 0, id: "call_0", type: "function", function: { name: "get_weather", arguments: '{"city":"LA"}' } }] } }] },
+        { choices: [{ delta: {} }], usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7, cost: 0.001 } },
+      ]),
+      sseResponse([
+        { choices: [{ delta: { content: "sunny" } }] },
+        { choices: [{ delta: {} }], usage: { prompt_tokens: 9, completion_tokens: 1, total_tokens: 10, cost: 0.002 } },
+      ]),
+    ]);
+
+    const result = await compose(
+      scope({ tools: [tool(async () => "sunny")], stream: (e) => events.push(e) }, model({ model: "openrouter/anthropic/claude-sonnet-5" })),
+    )("weather in LA?");
+
+    expect(events.filter((e) => e.type === "thinking").map((e) => e.content).join("")).toBe("need weather");
+    const assistant = calls[1].body.messages.find((m) => m.role === "assistant");
+    expect(assistant.reasoning_details).toEqual([
+      { type: "reasoning.text", text: "need weather", signature: "sig", format: "anthropic-claude-v1", index: 0 },
+    ]);
+    expect(result.usage.cost).toBeCloseTo(0.003);
+    expect(result.usage.totalTokens).toBe(17);
+  });
+
+  it("keeps reasoning details from a non-streamed reply", async () => {
+    withKey();
+    const details = [{ type: "reasoning.encrypted", data: "opaque", index: 0 }];
+    mockFetchSequence([jsonResponse({
+      choices: [{ message: { role: "assistant", content: "ok", reasoning_details: details } }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2, cost: 0.5 },
+    })]);
+    const result = await compose(model({ model: "openrouter/openai/gpt-6" }))("hi");
+    expect(result.lastResponse._reasoning_details).toEqual(details);
+    expect(result.usage.cost).toBe(0.5);
+  });
+
+  it("does not leak reasoning details to other chat providers", async () => {
+    const calls = mockFetchSequence([openaiChatResponse({ content: "ok" })]);
+    await model({ model: "xai/grok-x" })({
+      tools: [],
+      history: [{ role: "assistant", content: "hm", _reasoning_details: [{ type: "reasoning.text", text: "x", index: 0 }] }],
+    });
+    expect(calls[0].body.messages).toEqual([{ role: "assistant", content: "hm" }]);
+  });
+});
+
+describe("usage cost", () => {
+  it("carries a reported cost through providers that do not report one", async () => {
+    setKeys({ openrouter: "or-key" });
+    mockFetchSequence([
+      openaiChatResponse({ content: "a", usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2, cost: 0.25 } }),
+      openaiChatResponse({ content: "b" }),
+    ]);
+    const result = await compose(model({ model: "openrouter/x/y" }), model({ model: "xai/grok-x" }))("hi");
+    expect(result.usage.cost).toBe(0.25);
+    expect(result.usage.totalTokens).toBe(17);
+  });
+
+  it("omits cost when no provider reported one", async () => {
+    mockFetchSequence([openaiChatResponse({ content: "a" })]);
+    const result = await compose(model({ model: "xai/grok-x" }))("hi");
+    expect(result.usage).not.toHaveProperty("cost");
+  });
+});

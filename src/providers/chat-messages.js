@@ -7,7 +7,12 @@ const normalizeToolCall = (call) => ({
   },
 });
 
-export const toChatMessages = (history, convertUserContent) =>
+const noExtras = () => ({});
+
+// system messages are carried separately as instructions, so they are dropped
+// here. provider-private fields on assistant messages (thinking blocks, thought
+// signatures) are dropped too unless the provider asks for them via assistantExtras
+export const toChatMessages = (history, { convertUserContent, assistantExtras = noExtras }) =>
   history.flatMap((message) => {
     if (message.role === "system") return [];
     if (message.role === "user") {
@@ -18,6 +23,7 @@ export const toChatMessages = (history, convertUserContent) =>
         role: "assistant",
         content: message.content,
         ...(message.tool_calls?.length && { tool_calls: message.tool_calls.map(normalizeToolCall) }),
+        ...assistantExtras(message),
       }];
     }
     if (message.role === "tool") {

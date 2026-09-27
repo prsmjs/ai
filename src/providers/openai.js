@@ -1,7 +1,9 @@
-import { addUsage, getKey } from "../utils.js";
+import { getKey } from "../utils.js";
 import { request, transportOptions } from "./http.js";
 import { toChatMessages } from "./chat-messages.js";
+import { callChatCompletions } from "./chat-completions.js";
 import { handleResponsesStream, toResponsesInput, toResponsesTools } from "./responses.js";
+import { toStrictSchema } from "./strict-schema.js";
 
 /**
  * @typedef {import("../types.js").ConversationContext} ConversationContext
@@ -31,7 +33,7 @@ const mediaTypeToAudioFormat = (mediaType) => {
 /**
  * @param {string | ContentPart[]} content
  */
-const toOpenAIContent = (content) => {
+export const toOpenAIContent = (content) => {
   if (typeof content === "string") return content;
   return content.map((part) => {
     if (part.type === "text") return { type: "text", text: part.text };
@@ -68,17 +70,10 @@ const toOpenAIContent = (content) => {
   });
 };
 
-// system messages are carried separately as instructions, so drop them from
-// history to avoid sending the system prompt twice
 /**
  * @param {Message[]} history
  */
-const toOpenAIMessages = (history) => toChatMessages(history, toOpenAIContent);
-
-/**
- * @param {Message[]} history
- */
-const hasAudioPart = (history) =>
+export const hasAudioPart = (history) =>
   history.some(
     (msg) => typeof msg.content !== "string" && msg.content.some((part) => part.type === "audio"),
   );
@@ -96,19 +91,45 @@ const getApiKey = (configApiKey) => {
   }
 };
 
-// openai streams tool calls as incremental chunks keyed by index that need assembly.
-// example: {"index": 0, "function": {"name": "get_wea"}} then {"index": 0, "function": {"arguments": "ther"}}
-const appendToolCalls = (toolCalls, tcchunklist) => {
-  for (const tcchunk of tcchunklist) {
-    while (toolCalls.length <= tcchunk.index) {
-      toolCalls.push({ id: "", type: "function", function: { name: "", arguments: "" } });
-    }
-    const tc = toolCalls[tcchunk.index];
-    tc.id += tcchunk.id || "";
-    tc.function.name += tcchunk.function?.name || "";
-    tc.function.arguments += tcchunk.function?.arguments || "";
-  }
-  return toolCalls;
+const REASONING_EFFORTS = { low: "low", medium: "medium", high: "high", max: "high" };
+
+/**
+ * an OpenAI-compatible chat completions server at config.baseUrl (ollama,
+ * lm studio, vllm and the like)
+ *
+ * @param {ProviderConfig} config
+ * @param {ConversationContext} ctx
+ * @returns {Promise<ConversationContext>}
+ */
+const callOpenAICompatible = (config, ctx) => {
+  const { model, instructions, schema, apiKey: configApiKey, baseUrl, maxTokens } = config;
+  const apiKey = getApiKey(configApiKey);
+
+  const messages = [
+    ...(instructions ? [{ role: "system", content: instructions }] : []),
+    ...toChatMessages(ctx.history, { convertUserContent: toOpenAIContent }),
+  ];
+
+  const body = {
+    model,
+    messages,
+    ...(hasAudioPart(ctx.history) && { modalities: ["text"] }),
+    ...(maxTokens && { max_tokens: maxTokens }),
+    ...(schema && {
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: schema.name, schema: toStrictSchema(schema.schema), strict: true },
+      },
+    }),
+  };
+
+  return callChatCompletions({
+    url: `${baseUrl}/chat/completions`,
+    label: "OpenAI",
+    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+    body,
+    transport: transportOptions(config, ctx),
+  }, ctx);
 };
 
 /**
@@ -116,234 +137,8 @@ const appendToolCalls = (toolCalls, tcchunklist) => {
  * @param {ConversationContext} ctx
  * @returns {Promise<ConversationContext>}
  */
-const REASONING_EFFORTS = { low: "low", medium: "medium", high: "high", max: "high" };
-
-const allowsNull = (schema) =>
-  schema?.type === "null" ||
-  (Array.isArray(schema?.type) && schema.type.includes("null")) ||
-  schema?.anyOf?.some(allowsNull) ||
-  schema?.oneOf?.some(allowsNull);
-
-const makeNullable = (schema) => allowsNull(schema) ? schema : { anyOf: [schema, { type: "null" }] };
-
-const toStrictSchema = (schema) => {
-  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return schema;
-
-  const result = Object.fromEntries(
-    Object.entries(schema).map(([key, value]) => {
-      if (["properties", "$defs", "definitions"].includes(key)) {
-        return [key, Object.fromEntries(Object.entries(value).map(([name, child]) => [name, toStrictSchema(child)]))];
-      }
-      if (["items", "additionalProperties", "not", "if", "then", "else"].includes(key)) {
-        return [key, toStrictSchema(value)];
-      }
-      if (["anyOf", "oneOf", "allOf", "prefixItems"].includes(key)) {
-        return [key, value.map(toStrictSchema)];
-      }
-      return [key, value];
-    }),
-  );
-
-  if (!result.properties) return result;
-
-  const required = new Set(result.required ?? []);
-  result.properties = Object.fromEntries(
-    Object.entries(result.properties).map(([name, child]) => [
-      name,
-      required.has(name) ? child : makeNullable(child),
-    ]),
-  );
-  result.required = Object.keys(result.properties);
-  result.additionalProperties = false;
-  return result;
-};
-
-const callOpenAIChat = async (config, ctx) => {
-  const { model, instructions, schema, apiKey: configApiKey, baseUrl, maxTokens, effort } = config;
-  const apiKey = getApiKey(configApiKey);
-  const endpoint = baseUrl || "https://api.openai.com/v1";
-
-  const messages = [];
-  if (instructions) {
-    messages.push({ role: "system", content: instructions });
-  }
-  messages.push(...toOpenAIMessages(ctx.history));
-
-  // openai's reasoning models reject the legacy max_tokens param, while local
-  // OpenAI-compatible servers universally understand it and may not know the
-  // newer name. pick by whether we're talking to api.openai.com
-  const maxTokensParam = baseUrl ? "max_tokens" : "max_completion_tokens";
-
-  const body = {
-    model,
-    messages,
-    stream: !!ctx.stream,
-    ...(ctx.stream && { stream_options: { include_usage: true } }),
-    ...(hasAudioPart(ctx.history) && { modalities: ["text"] }),
-    ...(maxTokens && { [maxTokensParam]: maxTokens }),
-    ...(REASONING_EFFORTS[effort] && !baseUrl && { reasoning_effort: REASONING_EFFORTS[effort] }),
-  };
-
-  if (schema) {
-    body.response_format = {
-      type: "json_schema",
-      json_schema: {
-        name: schema.name,
-        schema: toStrictSchema(schema.schema),
-        strict: true,
-      },
-    };
-  }
-
-  if (ctx.tools && ctx.tools.length > 0) {
-    body.tools = ctx.tools;
-    body.tool_choice = "auto";
-  }
-
-  const headers = { "Content-Type": "application/json" };
-  if (apiKey) {
-    headers["Authorization"] = `Bearer ${apiKey}`;
-  }
-
-  const response = await request(`${endpoint}/chat/completions`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  }, transportOptions(config, ctx));
-
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${await response.text()}`);
-  }
-
-  if (ctx.stream) {
-    return handleOpenAIStream(response, ctx);
-  }
-
-  const data = await response.json();
-  const { message } = data.choices[0];
-
-  /** @type {Message & { tool_calls?: any[] }} */
-  const msg = { role: "assistant", content: message.content || "" };
-  if (message.tool_calls) {
-    msg.tool_calls = message.tool_calls;
-  }
-
-  return {
-    ...ctx,
-    lastResponse: msg,
-    history: [...ctx.history, msg],
-    usage: addUsage(
-      ctx.usage,
-      data.usage?.prompt_tokens || 0,
-      data.usage?.completion_tokens || 0,
-      data.usage?.total_tokens || 0,
-      data.usage?.prompt_tokens_details?.cached_tokens || 0,
-      data.usage?.completion_tokens_details?.reasoning_tokens || 0,
-    ),
-  };
-};
-
-/**
- * @param {Response} response
- * @param {ConversationContext} ctx
- * @returns {Promise<ConversationContext>}
- */
-const handleOpenAIStream = async (response, ctx) => {
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-
-  let fullContent = "";
-  let toolCalls = [];
-  let buffer = "";
-  let streamUsage = null;
-
-  try {
-    while (true) {
-      if (ctx.abortSignal?.aborted) break;
-
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6).trim();
-        if (data === "[DONE]" || !data) continue;
-
-        try {
-          const parsed = JSON.parse(data);
-
-          if (parsed.usage) streamUsage = parsed.usage;
-
-          const delta = parsed.choices?.[0]?.delta;
-
-          if (delta?.reasoning_content) {
-            ctx.stream?.({ type: "thinking", content: delta.reasoning_content });
-          }
-
-          if (delta?.content) {
-            fullContent += delta.content;
-            ctx.stream?.({ type: "content", content: delta.content });
-          }
-
-          if (delta?.tool_calls) {
-            toolCalls = appendToolCalls(toolCalls, delta.tool_calls);
-            for (const tcchunk of delta.tool_calls) {
-              const tc = toolCalls[tcchunk.index];
-              if (tcchunk.function?.name) {
-                ctx.stream?.({
-                  type: "tool_call_start",
-                  index: tcchunk.index,
-                  name: tc?.function?.name || "",
-                });
-              }
-              if (tcchunk.function?.arguments) {
-                ctx.stream?.({
-                  type: "tool_call_delta",
-                  index: tcchunk.index,
-                  name: tc?.function?.name || "",
-                  argumentDelta: tcchunk.function.arguments,
-                  argumentsSoFar: tc?.function?.arguments || "",
-                });
-              }
-            }
-          }
-        } catch {
-          // skip invalid JSON lines
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  /** @type {Message & { tool_calls?: any[] }} */
-  const msg = { role: "assistant", content: fullContent };
-  if (toolCalls.length > 0) {
-    msg.tool_calls = toolCalls;
-  }
-
-  const usage = addUsage(
-    ctx.usage,
-    streamUsage?.prompt_tokens || 0,
-    streamUsage?.completion_tokens || 0,
-    streamUsage?.total_tokens || 0,
-    streamUsage?.prompt_tokens_details?.cached_tokens || 0,
-    streamUsage?.completion_tokens_details?.reasoning_tokens || 0,
-  );
-
-  if (ctx.stream && streamUsage) {
-    ctx.stream({ type: "usage", usage });
-  }
-
-  return { ...ctx, lastResponse: msg, history: [...ctx.history, msg], usage };
-};
-
 export const callOpenAI = async (config, ctx) => {
-  if (config.baseUrl) return callOpenAIChat(config, ctx);
+  if (config.baseUrl) return callOpenAICompatible(config, ctx);
 
   const { model, instructions, schema, apiKey: configApiKey, maxTokens, effort } = config;
   const apiKey = getApiKey(configApiKey);

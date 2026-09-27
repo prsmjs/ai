@@ -67,14 +67,23 @@ model({ model: "openai/gpt-5.2" });
 model({ model: "anthropic/claude-sonnet-4-5" });
 model({ model: "google/gemini-2.5-flash" });
 model({ model: "xai/grok-4" });
+model({ model: "openrouter/anthropic/claude-sonnet-5" });
 ```
 
-API keys resolve in this order: `config.apiKey`, then `setKeys()`, then environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`).
+API keys resolve in this order: `config.apiKey`, then `setKeys()`, then environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`).
 
 Cap output length with `maxTokens`. When unset, no cap is sent and the provider's own limits apply - except Anthropic, whose API requires `max_tokens` on every request and defaults to 8192 here:
 
 ```js
 model({ model: "anthropic/claude-sonnet-4-5", maxTokens: 32000 });
+```
+
+### OpenRouter
+
+Everything after `openrouter/` is the OpenRouter model slug. `effort` maps to OpenRouter's unified `reasoning.effort`, and reasoning details (signed thinking, encrypted reasoning) are kept on assistant messages and sent back on later rounds, so tool loops keep working across Claude, Gemini, and OpenAI models. OpenRouter bills per request and reports it, so `usage.cost` holds the dollar amount for those calls. Extra `headers` (such as `X-Title` for app attribution) are passed through:
+
+```js
+model({ model: "openrouter/google/gemini-3.8-flash", effort: "high", headers: { "X-Title": "my-app" } });
 ```
 
 ### Local and OpenAI-compatible endpoints

@@ -11,6 +11,7 @@ setKeys({
   anthropic: process.env.ANTHROPIC_API_KEY,
   google: process.env.GEMINI_API_KEY,
   xai: process.env.XAI_API_KEY,
+  openrouter: process.env.OPENROUTER_API_KEY,
 });
 
 const when = (key) => (live && process.env[key] ? it : it.skip);
@@ -46,6 +47,21 @@ describe("live inference", () => {
       scope({ tools: [add] }, model({ model: "openai/gpt-4o-mini" })),
     )("What is 21 plus 21? Use the add tool, then state the number.");
     expect(result.lastResponse.content).toContain("42");
+  });
+
+  when("OPENROUTER_API_KEY")("openrouter keeps signed reasoning across a tool loop and reports cost", async () => {
+    const add = {
+      name: "add",
+      description: "add two numbers",
+      schema: { a: { type: "number" }, b: { type: "number" } },
+      execute: async ({ a, b }) => ({ sum: a + b }),
+    };
+    const result = await compose(
+      scope({ tools: [add] }, model({ model: "openrouter/anthropic/claude-haiku-4.5", effort: "low" })),
+    )("What is 21 plus 21? Use the add tool, then state the number.");
+    expect(result.lastResponse.content).toContain("42");
+    expect(result.history.some((m) => m._reasoning_details?.length)).toBe(true);
+    expect(result.usage.cost).toBeGreaterThan(0);
   });
 
   when("OPENAI_API_KEY")("openai returns structured output matching a zod schema", async () => {
