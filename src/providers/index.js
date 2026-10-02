@@ -31,6 +31,13 @@ export const callProvider = async (config, ctx) => {
   const providerConfig = { ...config, model };
   const key = provider.toLowerCase();
 
+  if (config.speed !== undefined) {
+    if (config.speed !== "standard" && config.speed !== "fast") {
+      throw new Error(`Invalid speed: ${config.speed}`);
+    }
+    if (key !== "codex") throw new Error(`Speed is not supported by provider: ${provider}`);
+  }
+
   switch (key) {
     case "openai":
       return callOpenAI(providerConfig, ctx);

@@ -28,6 +28,7 @@ const traced = (tracer, name, attributes, fn) =>
  *   maxTokens?: number,
  *   effort?: "auto" | "low" | "medium" | "high" | "max",
  *   headers?: Record<string, string>,
+ *   speed?: "standard" | "fast",
  *   timeoutMs?: number,
  *   retries?: number,
  *   tracer?: object,
@@ -44,6 +45,7 @@ export const model = ({
   maxTokens,
   effort,
   headers,
+  speed,
   timeoutMs,
   retries,
   tracer,
@@ -92,7 +94,7 @@ export const model = ({
       { "ai.provider": provider, "ai.model": model },
       () =>
         callProvider(
-          { model, instructions, schema: normalizedSchema, apiKey, baseUrl, maxTokens, effort, headers, timeoutMs, retries },
+          { model, instructions, schema: normalizedSchema, apiKey, baseUrl, maxTokens, effort, headers, speed, timeoutMs, retries },
           currentCtx,
         ),
     );

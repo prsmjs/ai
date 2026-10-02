@@ -93,6 +93,7 @@ export const handleResponsesStream = async (response, ctx, errorLabel) => {
   const toolCalls = [];
   const toolCallIndexes = new Map();
   let usage = null;
+  let serviceTier;
   let buffer = "";
   let failure = null;
 
@@ -167,8 +168,9 @@ export const handleResponsesStream = async (response, ctx, errorLabel) => {
             type: "function",
             function: { name: event.item.name, arguments: event.item.arguments || "{}" },
           };
-        } else if (event.type === "response.completed" && event.response?.usage) {
-          usage = event.response.usage;
+        } else if (event.type === "response.completed") {
+          usage = event.response?.usage;
+          if (typeof event.response?.service_tier === "string") serviceTier = event.response.service_tier;
         } else if (event.type === "response.failed" || event.type === "error") {
           failure = event.response?.error?.message || event.message || `${errorLabel} response failed`;
         }
@@ -185,6 +187,7 @@ export const handleResponsesStream = async (response, ctx, errorLabel) => {
   const fullContent = joinItemTexts([...texts.values()]);
   const msg = { role: "assistant", content: fullContent };
   if (toolCalls.length > 0) msg.tool_calls = toolCalls;
+  if (serviceTier !== undefined) msg.serviceTier = serviceTier;
 
   const inputTokens = usage?.input_tokens || 0;
   const outputTokens = usage?.output_tokens || 0;

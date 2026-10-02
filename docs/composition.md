@@ -93,6 +93,24 @@ const result = await model({
 
 Every provider request has a deadline (`timeoutMs`, default 10 minutes, covering headers through the end of the body) and is retried with exponential backoff on a network failure, a timeout, or a 408/409/425/429/5xx response (`retries`, default 2, honoring `Retry-After`). A caller's `abortSignal` is never retried. Only the request is retried: once a streamed body has started reaching you, a drop surfaces as an error.
 
+### Codex speed
+
+Codex requests can use Fast mode independently of reasoning effort:
+
+```js
+const codingAgent = model({
+  model: "codex/gpt-6.1-sol",
+  apiKey: accessToken,
+  headers: { "chatgpt-account-id": accountId },
+  speed: "fast",
+  effort: "high",
+});
+```
+
+`speed: "fast"` sends `service_tier: "priority"` and a matching Codex routing hint. `"standard"` or an omitted speed leaves the service tier unset. Caller-supplied routing hints are replaced to keep routing consistent with speed. Other providers reject an explicit speed option.
+
+Fast mode consumes more subscription allowance. Availability depends on the account and model. The raw final response tier, when present, is available as `result.lastResponse.serviceTier`. The subscription backend can report `"default"` even when priority requests generate output faster; do not interpret this field as a reliable Fast-mode status indicator.
+
 ### Before each request
 
 `beforeRequest(ctx)` returns the context to send to the provider, synchronously or asynchronously. It runs before the initial request and each subsequent request in the tool loop, after every tool in the preceding batch has completed. HTTP retries reuse the prepared request without calling the hook again.

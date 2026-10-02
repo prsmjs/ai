@@ -78,7 +78,7 @@
  * @typedef {object} ConversationContext
  * @property {Message[]} history
  * @property {Message} [lastRequest]
- * @property {Message & { tool_calls?: ToolCall[] }} [lastResponse]
+ * @property {Message & { tool_calls?: ToolCall[], serviceTier?: string }} [lastResponse]
  * @property {ToolDefinition[]} [tools]
  * @property {Record<string, Function>} [toolExecutors]
  * @property {(event: StreamEvent) => void} [stream]
@@ -141,6 +141,7 @@ export const Inherit = Object.freeze({
  * @property {string} [apiKey]
  * @property {string} [baseUrl]
  * @property {"auto" | "low" | "medium" | "high" | "max"} [effort]
+ * @property {"standard" | "fast"} [speed] Codex request speed, independent of reasoning effort
  * @property {Record<string, string>} [headers] extra request headers, for providers that accept them (codex, openrouter)
  * @property {number} [maxTokens] cap on output tokens. omitted from the request when unset, except Anthropic where the API requires it (defaults to 8192)
  * @property {number} [timeoutMs] deadline for one HTTP attempt, headers through body. default 10 minutes

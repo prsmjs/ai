@@ -23,7 +23,7 @@ export const toCodexTools = toResponsesTools;
  * @returns {Promise<ConversationContext>}
  */
 export const callCodex = async (config, ctx) => {
-  const { model, instructions, apiKey, baseUrl, maxTokens, effort, headers } = config;
+  const { model, instructions, apiKey, baseUrl, maxTokens, effort, headers, speed } = config;
   if (!apiKey) {
     throw new Error("Codex provider requires a ChatGPT OAuth access token passed as apiKey");
   }
@@ -35,6 +35,7 @@ export const callCodex = async (config, ctx) => {
     store: false,
     stream: true,
     parallel_tool_calls: false,
+    ...(speed === "fast" && { service_tier: "priority" }),
     ...(maxTokens && { max_output_tokens: maxTokens }),
   };
   if (ctx.tools && ctx.tools.length > 0) {
@@ -48,6 +49,11 @@ export const callCodex = async (config, ctx) => {
     ...(REASONING_EFFORTS[effort] && { effort: REASONING_EFFORTS[effort] }),
   };
 
+  const requestHeaders = Object.fromEntries(
+    Object.entries(headers || {}).filter(([name]) => name.toLowerCase() !== "x-codex-routing-hint"),
+  );
+  if (speed === "fast") requestHeaders["x-codex-routing-hint"] = `model=${model};tier=priority`;
+
   const response = await request(`${baseUrl || DEFAULT_BASE_URL}/responses`, {
     method: "POST",
     headers: {
@@ -56,7 +62,7 @@ export const callCodex = async (config, ctx) => {
       Authorization: `Bearer ${apiKey}`,
       "OpenAI-Beta": "responses=experimental",
       originator: "codex_cli_rs",
-      ...headers,
+      ...requestHeaders,
     },
     body: JSON.stringify(body),
   }, transportOptions(config, ctx));
