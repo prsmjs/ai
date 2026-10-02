@@ -93,6 +93,23 @@ const result = await model({
 
 Every provider request has a deadline (`timeoutMs`, default 10 minutes, covering headers through the end of the body) and is retried with exponential backoff on a network failure, a timeout, or a 408/409/425/429/5xx response (`retries`, default 2, honoring `Retry-After`). A caller's `abortSignal` is never retried. Only the request is retried: once a streamed body has started reaching you, a drop surfaces as an error.
 
+### Before each request
+
+`beforeRequest(ctx)` returns the context to send to the provider, synchronously or asynchronously. It runs before the initial request and each subsequent request in the tool loop, after every tool in the preceding batch has completed. HTTP retries reuse the prepared request without calling the hook again.
+
+A coding agent can use it to deliver queued background job completions between tool batches:
+
+```js
+const workflow = model({
+  beforeRequest: async (ctx) => {
+    const messages = await drainJobCompletions();
+    return { ...ctx, history: [...ctx.history, ...messages] };
+  },
+});
+```
+
+Preserve existing tool calls and their result messages when changing history. The hook does not interrupt generation or tools. An already-aborted context skips the hook; aborting the original or returned context while the hook runs skips the provider request. Hook errors propagate to the caller.
+
 ### With a system message
 
 ```js

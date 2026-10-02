@@ -31,6 +31,7 @@ const traced = (tracer, name, attributes, fn) =>
  *   timeoutMs?: number,
  *   retries?: number,
  *   tracer?: object,
+ *   beforeRequest?: (ctx: ConversationContext) => ConversationContext | Promise<ConversationContext>,
  * }} [config]
  * @returns {ComposedFunction}
  */
@@ -46,6 +47,7 @@ export const model = ({
   timeoutMs,
   retries,
   tracer,
+  beforeRequest,
 } = {}) => async (ctxOrMessage) => {
   const ctx =
     typeof ctxOrMessage === "string"
@@ -71,12 +73,18 @@ export const model = ({
     };
   }
 
-  const systemMessage = currentCtx.history.find((m) => m.role === "system");
-  const instructions =
-    typeof systemMessage?.content === "string" ? systemMessage.content : undefined;
-
   do {
     if (currentCtx.abortSignal?.aborted) break;
+
+    if (beforeRequest) {
+      const abortSignal = currentCtx.abortSignal;
+      currentCtx = await beforeRequest(currentCtx);
+      if (abortSignal?.aborted || currentCtx.abortSignal?.aborted) break;
+    }
+
+    const systemMessage = currentCtx.history.find((m) => m.role === "system");
+    const instructions =
+      typeof systemMessage?.content === "string" ? systemMessage.content : undefined;
 
     currentCtx = await traced(
       activeTracer,
