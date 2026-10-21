@@ -1,4 +1,3 @@
-import { convertMCPSchemaToToolSchema } from "./schema.js";
 
 /**
  * @typedef {import("./types.js").ToolConfig} ToolConfig
@@ -52,7 +51,9 @@ const buildTools = async (client) => {
   return (await client.listTools()).tools.map((mcpTool) => ({
     name: namespaced(serverName, mcpTool.name),
     description: `[${serverName}] ${mcpTool.description || ""}`,
-    schema: convertMCPSchemaToToolSchema(mcpTool.inputSchema),
+    // the server's own schema, whole: flattening it loses anyOf, $ref and
+    // the like, and the server then rejects what the model sends
+    schema: mcpTool.inputSchema?.type ? mcpTool.inputSchema : { type: "object", properties: {} },
     execute: async (args) => {
       const result = await client.callTool({ name: mcpTool.name, arguments: args });
       return (

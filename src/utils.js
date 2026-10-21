@@ -1,4 +1,4 @@
-import { isStandardSchema, convertStandardSchemaToSchemaProperties } from "./schema.js";
+import { isStandardSchema, isObjectJsonSchema, convertStandardSchemaToJsonSchema } from "./schema.js";
 
 /**
  * @typedef {import("./types.js").ApiKeys} ApiKeys
@@ -16,32 +16,34 @@ import { isStandardSchema, convertStandardSchemaToSchemaProperties } from "./sch
  * @param {ToolConfig} tool
  * @returns {ToolDefinition}
  */
-export const toolConfigToToolDefinition = (tool) => {
-  const schema = isStandardSchema(tool.schema)
-    ? convertStandardSchemaToSchemaProperties(tool.schema)
-    : tool.schema;
+export const toolConfigToToolDefinition = (tool) => ({
+  type: "function",
+  function: {
+    name: tool.name,
+    description: tool.description,
+    parameters: parametersFor(tool.schema),
+  },
+});
+
+// whole JSON Schemas (an MCP server's, or a Standard Schema's) go as they
+// are; the property map is built into one
+const parametersFor = (schema) => {
+  if (isStandardSchema(schema)) {
+    const { $schema, ...rest } = convertStandardSchemaToJsonSchema(schema).schema;
+    return rest;
+  }
+  if (isObjectJsonSchema(schema)) return schema;
 
   const properties = {};
   const required = [];
-
-  for (const [key, prop] of Object.entries(schema)) {
+  for (const [key, prop] of Object.entries(schema ?? {})) {
     properties[key] = convertSchemaProperty(prop);
-    if (!prop.optional) {
-      required.push(key);
-    }
+    if (!prop.optional) required.push(key);
   }
-
   return {
-    type: "function",
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: {
-        type: "object",
-        properties,
-        ...(required.length > 0 && { required }),
-      },
-    },
+    type: "object",
+    properties,
+    ...(required.length > 0 && { required }),
   };
 };
 

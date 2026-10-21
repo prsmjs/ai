@@ -41,10 +41,17 @@
  */
 
 /**
+ * A tool's whole parameter object as JSON Schema, sent to providers as it
+ * is: what an MCP server declares, with anyOf, $ref, nested required and
+ * the rest intact
+ * @typedef {{ type: "object", properties?: Record<string, any>, required?: string[], [key: string]: any }} ObjectJsonSchema
+ */
+
+/**
  * @typedef {object} ToolConfig
  * @property {string} name
  * @property {string} description
- * @property {Record<string, SchemaProperty> | StandardSchema} schema
+ * @property {Record<string, SchemaProperty> | StandardSchema | ObjectJsonSchema} schema
  * @property {(args: any) => Promise<any> | any} execute
  * @property {number} [_maxCalls]
  */

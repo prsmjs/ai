@@ -53,6 +53,16 @@ export const convertStandardSchemaToJsonSchema = (standardSchema, name = "Schema
 });
 
 /**
+ * a tool schema that is already a whole JSON Schema object, told apart
+ * from the property map by its own `type` being a string
+ * @param {any} schema
+ */
+export const isObjectJsonSchema = (schema) =>
+  !!schema && typeof schema === "object" && !isStandardSchema(schema) && typeof schema.type === "string";
+
+/**
+ * the flattened property map; lossy (anyOf, $ref and nested required are
+ * dropped), so MCP tools keep their server's schema whole instead
  * @param {any} mcpSchema
  * @returns {Record<string, SchemaProperty>}
  */

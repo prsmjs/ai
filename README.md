@@ -116,7 +116,7 @@ const result = await compose(scope({ tools: [searchTool] }, model()))(
 );
 ```
 
-Schemas can be plain JSON Schema (as above) or [Zod](https://zod.dev) schemas, which are converted automatically:
+Schemas can be a map of properties (as above), a whole JSON Schema object (`{ type: "object", properties, required }`, sent to the provider as it is, which is how MCP tools keep their server's schema), or [Zod](https://zod.dev) schemas, which are converted automatically:
 
 ```js
 import { z } from "zod";

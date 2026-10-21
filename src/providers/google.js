@@ -137,7 +137,8 @@ export const callGoogle = async (config, ctx) => {
         function_declarations: ctx.tools.map((tool) => ({
           name: tool.function.name,
           description: tool.function.description,
-          parameters: tool.function.parameters,
+          // full JSON Schema; `parameters` takes only an OpenAPI subset
+          parametersJsonSchema: tool.function.parameters,
         })),
       },
     ];
