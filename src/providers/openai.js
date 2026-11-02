@@ -140,8 +140,25 @@ const callOpenAICompatible = (config, ctx) => {
 export const callOpenAI = async (config, ctx) => {
   if (config.baseUrl) return callOpenAICompatible(config, ctx);
 
-  const { model, instructions, schema, apiKey: configApiKey, maxTokens, effort } = config;
-  const apiKey = getApiKey(configApiKey);
+  const apiKey = getApiKey(config.apiKey);
+  return callResponsesAPI({
+    url: "https://api.openai.com/v1/responses",
+    label: "OpenAI",
+    headers: { ...(apiKey && { Authorization: `Bearer ${apiKey}` }), ...config.headers },
+  }, config, ctx);
+};
+
+/**
+ * post a streaming Responses API request. shared by OpenAI and Azure OpenAI,
+ * which take the same body and differ only in URL and auth headers
+ *
+ * @param {{ url: string, label: string, headers: Record<string, string> }} target
+ * @param {ProviderConfig} config
+ * @param {ConversationContext} ctx
+ * @returns {Promise<ConversationContext>}
+ */
+export const callResponsesAPI = async ({ url, label, headers }, config, ctx) => {
+  const { model, instructions, schema, maxTokens, effort } = config;
   const body = {
     model,
     instructions: instructions || "",
@@ -170,18 +187,18 @@ export const callOpenAI = async (config, ctx) => {
     };
   }
 
-  const response = await request("https://api.openai.com/v1/responses", {
+  const response = await request(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
-      ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
+      ...headers,
     },
     body: JSON.stringify(body),
   }, transportOptions(config, ctx));
 
   if (!response.ok) {
-    throw new Error(`OpenAI API error: ${await response.text()}`);
+    throw new Error(`${label} API error: ${await response.text()}`);
   }
-  return handleResponsesStream(response, ctx, "OpenAI");
+  return handleResponsesStream(response, ctx, label);
 };

@@ -34,6 +34,13 @@ describe("openai provider", () => {
     expect(result.usage.totalTokens).toBe(5);
   });
 
+  it("merges caller headers into the Responses request", async () => {
+    const calls = mockFetchSequence([response({ content: "ok" })]);
+    await compose(model({ model: "openai/gpt-5.2", headers: { "OpenAI-Organization": "org-1" } }))("hi");
+    expect(calls[0].init.headers["OpenAI-Organization"]).toBe("org-1");
+    expect(calls[0].init.headers.Authorization).toBe("Bearer sk-test");
+  });
+
   it("passes strict structured output through text.format", async () => {
     const calls = mockFetchSequence([response({ content: "{}" })]);
     await compose(model({ model: "openai/gpt-5.2", schema: z.object({ name: z.string(), note: z.string().optional() }) }))("extract");
