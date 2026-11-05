@@ -82,6 +82,22 @@ describe("azure provider", () => {
     expect(calls[0].url).toBe(`${BASE}/responses`);
   });
 
+  it("keeps a query string such as api-version after the /responses path", async () => {
+    clearEnv();
+    const calls = mockFetchSequence([openaiResponse({ content: "a" }), openaiResponse({ content: "b" })]);
+    await compose(model({ model: "azure/d", apiKey: "k", baseUrl: `${BASE}/?api-version=preview` }))("hi");
+    vi.stubEnv("AZURE_OPENAI_ENDPOINT", "https://my-resource.openai.azure.com?api-version=preview");
+    await compose(model({ model: "azure/d", apiKey: "k" }))("hi");
+    expect(calls[0].url).toBe(`${BASE}/responses?api-version=preview`);
+    expect(calls[1].url).toBe(`${BASE}/responses?api-version=preview`);
+  });
+
+  it("rejects a base url that is not a valid URL", async () => {
+    clearEnv();
+    mockFetchSequence([openaiResponse({ content: "never" })]);
+    await expect(compose(model({ model: "azure/d", apiKey: "k", baseUrl: "my-resource.openai.azure.com" }))("hi")).rejects.toThrow(/baseUrl is not a valid URL/);
+  });
+
   it("accepts an api-key passed in headers, in any case, without a configured key", async () => {
     clearEnv();
     const calls = mockFetchSequence([openaiResponse({ content: "ok" })]);

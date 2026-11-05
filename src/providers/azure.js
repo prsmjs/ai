@@ -11,23 +11,58 @@ import { callResponsesAPI } from "./openai.js";
 // the model. it authenticates with an api-key header, or with an entra id
 // bearer token that the caller passes as headers.Authorization
 
-const trimSlashes = (url) => url.replace(/\/+$/, "");
+/**
+ * @param {string} value
+ * @param {string} source where the value came from, for the error message
+ * @returns {URL}
+ */
+const parseBaseUrl = (value, source) => {
+  try {
+    return new URL(value);
+  } catch {
+    throw new Error(`Azure OpenAI ${source} is not a valid URL: ${value}`);
+  }
+};
+
+/**
+ * append to a url's path, keeping its query string (such as
+ * ?api-version=preview) after the new path
+ *
+ * @param {URL} url
+ * @param {string} suffix
+ */
+const appendPath = (url, suffix) => {
+  url.pathname = url.pathname.replace(/\/+$/, "") + suffix;
+};
 
 /**
  * @param {ProviderConfig} config
- * @returns {string}
+ * @returns {URL}
  */
 const getBaseUrl = (config) => {
-  if (config.baseUrl) return trimSlashes(config.baseUrl);
-  if (process.env.AZURE_OPENAI_BASE_URL) return trimSlashes(process.env.AZURE_OPENAI_BASE_URL);
+  if (config.baseUrl) return parseBaseUrl(config.baseUrl, "baseUrl");
+  if (process.env.AZURE_OPENAI_BASE_URL) {
+    return parseBaseUrl(process.env.AZURE_OPENAI_BASE_URL, "AZURE_OPENAI_BASE_URL");
+  }
   if (process.env.AZURE_OPENAI_ENDPOINT) {
     // the portal shows both the resource root and the full v1 url; accept either
-    const endpoint = trimSlashes(process.env.AZURE_OPENAI_ENDPOINT);
-    return /\/openai\/v1$/i.test(endpoint) ? endpoint : `${endpoint}/openai/v1`;
+    const url = parseBaseUrl(process.env.AZURE_OPENAI_ENDPOINT, "AZURE_OPENAI_ENDPOINT");
+    if (!/\/openai\/v1\/*$/i.test(url.pathname)) appendPath(url, "/openai/v1");
+    return url;
   }
   throw new Error(
     "Azure OpenAI requires baseUrl (https://<resource>.openai.azure.com/openai/v1), AZURE_OPENAI_BASE_URL, or AZURE_OPENAI_ENDPOINT",
   );
+};
+
+/**
+ * @param {ProviderConfig} config
+ * @returns {string} the Responses endpoint, keeping any query from the base url
+ */
+const getResponsesUrl = (config) => {
+  const url = getBaseUrl(config);
+  appendPath(url, "/responses");
+  return url.toString();
 };
 
 /**
@@ -70,7 +105,7 @@ export const callAzure = (config, ctx) => {
   }
 
   return callResponsesAPI({
-    url: `${getBaseUrl(config)}/responses`,
+    url: getResponsesUrl(config),
     label: "Azure OpenAI",
     headers: { ...(apiKey && { "api-key": apiKey }), ...headers },
   }, config, ctx);
