@@ -68,9 +68,10 @@ model({ model: "anthropic/claude-sonnet-4-5" });
 model({ model: "google/gemini-2.5-flash" });
 model({ model: "xai/grok-4" });
 model({ model: "openrouter/anthropic/claude-sonnet-5" });
+model({ model: "azure/my-gpt-deployment" });
 ```
 
-API keys resolve in this order: `config.apiKey`, then `setKeys()`, then environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`).
+API keys resolve in this order: `config.apiKey`, then `setKeys()`, then environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`, `AZURE_OPENAI_API_KEY`).
 
 Cap output length with `maxTokens`. When unset, no cap is sent and the provider's own limits apply - except Anthropic, whose API requires `max_tokens` on every request and defaults to 8192 here:
 
@@ -84,6 +85,33 @@ Everything after `openrouter/` is the OpenRouter model slug. `effort` maps to Op
 
 ```js
 model({ model: "openrouter/google/gemini-3.8-flash", effort: "high", headers: { "X-Title": "my-app" } });
+```
+
+### Azure OpenAI
+
+Everything after `azure/` is your deployment name. Requests go to the resource's v1 Responses endpoint, so tools, streaming, structured output, and `effort` behave as they do for `openai/`. Set `baseUrl` to the resource's v1 URL. An API key is sent as the `api-key` header:
+
+```js
+model({
+  model: "azure/my-gpt-deployment",
+  baseUrl: "https://my-resource.openai.azure.com/openai/v1",
+  apiKey: process.env.AZURE_OPENAI_API_KEY,
+});
+```
+
+For Microsoft Entra ID, pass the bearer token in `headers` instead and no API key is needed. Tokens expire, so build the model with a fresh token per request:
+
+```js
+import { DefaultAzureCredential, getBearerTokenProvider } from "@azure/identity";
+
+const getToken = getBearerTokenProvider(new DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default");
+
+const azure = async (ctx) =>
+  model({
+    model: "azure/my-gpt-deployment",
+    baseUrl: "https://my-resource.openai.azure.com/openai/v1",
+    headers: { Authorization: `Bearer ${await getToken()}` },
+  })(ctx);
 ```
 
 ### Local and OpenAI-compatible endpoints

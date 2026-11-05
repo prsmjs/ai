@@ -100,3 +100,23 @@ export const transportOptions = (config, ctx) => ({
   timeoutMs: config.timeoutMs,
   retries: config.retries,
 });
+
+/**
+ * merge header objects left to right, matching names case-insensitively so a
+ * caller's `authorization` replaces a default `Authorization` instead of being
+ * sent alongside it. undefined and null values are dropped, not sent as text
+ *
+ * @param {...(Record<string, string | undefined | null> | undefined)} sources
+ * @returns {Record<string, string>}
+ */
+export const mergeHeaders = (...sources) => {
+  const merged = new Map();
+  for (const source of sources) {
+    for (const [name, value] of Object.entries(source || {})) {
+      const key = name.toLowerCase();
+      if (value === undefined || value === null) merged.delete(key);
+      else merged.set(key, [name, String(value)]);
+    }
+  }
+  return Object.fromEntries(merged.values());
+};

@@ -1,5 +1,5 @@
 import { getKey } from "../utils.js";
-import { request, transportOptions } from "./http.js";
+import { mergeHeaders, request, transportOptions } from "./http.js";
 import { toChatMessages } from "./chat-messages.js";
 import { callChatCompletions } from "./chat-completions.js";
 import { handleResponsesStream, toResponsesInput, toResponsesTools } from "./responses.js";
@@ -102,7 +102,7 @@ const REASONING_EFFORTS = { low: "low", medium: "medium", high: "high", max: "hi
  * @returns {Promise<ConversationContext>}
  */
 const callOpenAICompatible = (config, ctx) => {
-  const { model, instructions, schema, apiKey: configApiKey, baseUrl, maxTokens } = config;
+  const { model, instructions, schema, apiKey: configApiKey, baseUrl, maxTokens, headers } = config;
   const apiKey = getApiKey(configApiKey);
 
   const messages = [
@@ -126,7 +126,7 @@ const callOpenAICompatible = (config, ctx) => {
   return callChatCompletions({
     url: `${baseUrl}/chat/completions`,
     label: "OpenAI",
-    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+    headers: mergeHeaders(apiKey && { Authorization: `Bearer ${apiKey}` }, headers),
     body,
     transport: transportOptions(config, ctx),
   }, ctx);
@@ -140,8 +140,25 @@ const callOpenAICompatible = (config, ctx) => {
 export const callOpenAI = async (config, ctx) => {
   if (config.baseUrl) return callOpenAICompatible(config, ctx);
 
-  const { model, instructions, schema, apiKey: configApiKey, maxTokens, effort } = config;
-  const apiKey = getApiKey(configApiKey);
+  const apiKey = getApiKey(config.apiKey);
+  return callResponsesAPI({
+    url: "https://api.openai.com/v1/responses",
+    label: "OpenAI",
+    headers: mergeHeaders(apiKey && { Authorization: `Bearer ${apiKey}` }, config.headers),
+  }, config, ctx);
+};
+
+/**
+ * post a streaming Responses API request. shared by OpenAI and Azure OpenAI,
+ * which take the same body and differ only in URL and auth headers
+ *
+ * @param {{ url: string, label: string, headers?: Record<string, string> }} target
+ * @param {ProviderConfig} config
+ * @param {ConversationContext} ctx
+ * @returns {Promise<ConversationContext>}
+ */
+export const callResponsesAPI = async ({ url, label, headers }, config, ctx) => {
+  const { model, instructions, schema, maxTokens, effort } = config;
   const body = {
     model,
     instructions: instructions || "",
@@ -170,18 +187,14 @@ export const callOpenAI = async (config, ctx) => {
     };
   }
 
-  const response = await request("https://api.openai.com/v1/responses", {
+  const response = await request(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-      ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
-    },
+    headers: mergeHeaders({ "Content-Type": "application/json", Accept: "text/event-stream" }, headers),
     body: JSON.stringify(body),
   }, transportOptions(config, ctx));
 
   if (!response.ok) {
-    throw new Error(`OpenAI API error: ${await response.text()}`);
+    throw new Error(`${label} API error: ${response.status} ${await response.text()}`);
   }
-  return handleResponsesStream(response, ctx, "OpenAI");
+  return handleResponsesStream(response, ctx, label);
 };

@@ -12,9 +12,10 @@ setKeys({
   google: process.env.GEMINI_API_KEY,
   xai: process.env.XAI_API_KEY,
   openrouter: process.env.OPENROUTER_API_KEY,
+  azure: process.env.AZURE_OPENAI_API_KEY,
 });
 
-const when = (key) => (live && process.env[key] ? it : it.skip);
+const when = (...keys) => (live && keys.every((key) => process.env[key]) ? it : it.skip);
 
 describe("live inference", () => {
   when("OPENAI_API_KEY")("openai answers a basic prompt", async () => {
@@ -31,6 +32,17 @@ describe("live inference", () => {
 
   when("GEMINI_API_KEY")("google answers a basic prompt", async () => {
     const result = await compose(model({ model: "google/gemini-2.0-flash" }))(
+      "Reply with just the word: pong",
+    );
+    expect(result.lastResponse.content.toLowerCase()).toContain("pong");
+  });
+
+  // azure needs the resource's v1 url (https://<resource>.openai.azure.com/openai/v1)
+  // and a deployment name as well as a key
+  when("AZURE_OPENAI_API_KEY", "AZURE_OPENAI_BASE_URL", "AZURE_OPENAI_DEPLOYMENT")("azure answers a basic prompt", async () => {
+    const result = await compose(
+      model({ model: `azure/${process.env.AZURE_OPENAI_DEPLOYMENT}`, baseUrl: process.env.AZURE_OPENAI_BASE_URL }),
+    )(
       "Reply with just the word: pong",
     );
     expect(result.lastResponse.content.toLowerCase()).toContain("pong");

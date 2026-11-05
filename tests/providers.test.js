@@ -34,6 +34,24 @@ describe("openai provider", () => {
     expect(result.usage.totalTokens).toBe(5);
   });
 
+  it("merges caller headers into the Responses request", async () => {
+    const calls = mockFetchSequence([response({ content: "ok" })]);
+    await compose(model({ model: "openai/gpt-5.2", headers: { "OpenAI-Organization": "org-1" } }))("hi");
+    expect(calls[0].init.headers["OpenAI-Organization"]).toBe("org-1");
+    expect(calls[0].init.headers.Authorization).toBe("Bearer sk-test");
+  });
+
+  it("lets a caller header replace a default of the same name in any case", async () => {
+    const calls = mockFetchSequence([response({ content: "ok" })]);
+    await compose(model({ model: "openai/gpt-5.2", headers: { authorization: "Bearer other", accept: "text/event-stream" } }))("hi");
+    expect(calls[0].init.headers).toEqual({ "Content-Type": "application/json", accept: "text/event-stream", authorization: "Bearer other" });
+  });
+
+  it("includes the HTTP status in Responses API errors", async () => {
+    mockFetchSequence([errorResponse(401, "")]);
+    await expect(compose(model({ model: "openai/gpt-5.2", retries: 0 }))("hi")).rejects.toThrow("OpenAI API error: 401");
+  });
+
   it("passes strict structured output through text.format", async () => {
     const calls = mockFetchSequence([response({ content: "{}" })]);
     await compose(model({ model: "openai/gpt-5.2", schema: z.object({ name: z.string(), note: z.string().optional() }) }))("extract");
@@ -272,6 +290,12 @@ describe("local routing", () => {
     const calls = mockFetchSequence([openaiChatResponse({ content: "lmstudio" })]);
     await compose(model({ model: "lmstudio/m", baseUrl: "http://localhost:4321/v1" }))("hi");
     expect(calls[0].url).toBe("http://localhost:4321/v1/chat/completions");
+  });
+
+  it("forwards caller headers to OpenAI-compatible servers", async () => {
+    const calls = mockFetchSequence([openaiChatResponse({ content: "ok" })]);
+    await compose(model({ model: "openai/m", baseUrl: "https://gateway/v1", headers: { "X-Tenant": "t1", authorization: "Bearer gw" } }))("hi");
+    expect(calls[0].init.headers).toEqual({ "Content-Type": "application/json", "X-Tenant": "t1", authorization: "Bearer gw" });
   });
 });
 

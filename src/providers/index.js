@@ -6,6 +6,7 @@ import { callHuggingFace } from "./huggingface.js";
 import { callXAI } from "./xai.js";
 import { callCodex } from "./codex.js";
 import { callOpenRouter } from "./openrouter.js";
+import { callAzure } from "./azure.js";
 
 /**
  * @typedef {import("../types.js").ConversationContext} ConversationContext
@@ -41,6 +42,8 @@ export const callProvider = async (config, ctx) => {
   switch (key) {
     case "openai":
       return callOpenAI(providerConfig, ctx);
+    case "azure":
+      return callAzure(providerConfig, ctx);
     case "anthropic":
       return callAnthropic(providerConfig, ctx);
     case "google":

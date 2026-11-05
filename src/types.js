@@ -146,10 +146,10 @@ export const Inherit = Object.freeze({
  * @property {string} [instructions]
  * @property {JsonSchema} [schema]
  * @property {string} [apiKey]
- * @property {string} [baseUrl]
+ * @property {string} [baseUrl] OpenAI-compatible chat completions server for openai/ and local prefixes; for azure/, the resource's v1 endpoint (https://<resource>.openai.azure.com/openai/v1)
  * @property {"auto" | "low" | "medium" | "high" | "max"} [effort]
  * @property {"standard" | "fast"} [speed] Codex request speed, independent of reasoning effort
- * @property {Record<string, string>} [headers] extra request headers, for providers that accept them (codex, openrouter)
+ * @property {Record<string, string>} [headers] extra request headers, for providers that accept them (openai and the local prefixes, azure, codex, openrouter). names match case-insensitively, so a caller header replaces a default of the same name
  * @property {number} [maxTokens] cap on output tokens. omitted from the request when unset, except Anthropic where the API requires it (defaults to 8192)
  * @property {number} [timeoutMs] deadline for one HTTP attempt, headers through body. default 10 minutes
  * @property {number} [retries] extra attempts after a network failure, timeout, 408/409/425/429 or 5xx. default 2
