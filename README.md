@@ -89,7 +89,7 @@ model({ model: "openrouter/google/gemini-3.8-flash", effort: "high", headers: { 
 
 ### Azure OpenAI
 
-Everything after `azure/` is your deployment name. Requests go to the resource's v1 Responses endpoint, so tools, streaming, structured output, and `effort` behave as they do for `openai/`. Set the endpoint with `baseUrl`, or with `AZURE_OPENAI_BASE_URL` (the full `.../openai/v1` URL) or `AZURE_OPENAI_ENDPOINT` (the resource root, or the same full URL). An API key is sent as the `api-key` header:
+Everything after `azure/` is your deployment name. Requests go to the resource's v1 Responses endpoint, so tools, streaming, structured output, and `effort` behave as they do for `openai/`. Set `baseUrl` to the resource's v1 URL. An API key is sent as the `api-key` header:
 
 ```js
 model({
@@ -107,7 +107,11 @@ import { DefaultAzureCredential, getBearerTokenProvider } from "@azure/identity"
 const getToken = getBearerTokenProvider(new DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default");
 
 const azure = async (ctx) =>
-  model({ model: "azure/my-gpt-deployment", headers: { Authorization: `Bearer ${await getToken()}` } })(ctx);
+  model({
+    model: "azure/my-gpt-deployment",
+    baseUrl: "https://my-resource.openai.azure.com/openai/v1",
+    headers: { Authorization: `Bearer ${await getToken()}` },
+  })(ctx);
 ```
 
 ### Local and OpenAI-compatible endpoints

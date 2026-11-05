@@ -13,7 +13,7 @@ import { callResponsesAPI } from "./openai.js";
 
 /**
  * @param {string} value
- * @param {string} source where the value came from, for the error message
+ * @param {string} source the setting it came from, for the error message
  * @returns {URL}
  */
 const parseBaseUrl = (value, source) => {
@@ -37,30 +37,13 @@ const appendPath = (url, suffix) => {
 
 /**
  * @param {ProviderConfig} config
- * @returns {URL}
- */
-const getBaseUrl = (config) => {
-  if (config.baseUrl) return parseBaseUrl(config.baseUrl, "baseUrl");
-  if (process.env.AZURE_OPENAI_BASE_URL) {
-    return parseBaseUrl(process.env.AZURE_OPENAI_BASE_URL, "AZURE_OPENAI_BASE_URL");
-  }
-  if (process.env.AZURE_OPENAI_ENDPOINT) {
-    // the portal shows both the resource root and the full v1 url; accept either
-    const url = parseBaseUrl(process.env.AZURE_OPENAI_ENDPOINT, "AZURE_OPENAI_ENDPOINT");
-    if (!/\/openai\/v1\/*$/i.test(url.pathname)) appendPath(url, "/openai/v1");
-    return url;
-  }
-  throw new Error(
-    "Azure OpenAI requires baseUrl (https://<resource>.openai.azure.com/openai/v1), AZURE_OPENAI_BASE_URL, or AZURE_OPENAI_ENDPOINT",
-  );
-};
-
-/**
- * @param {ProviderConfig} config
- * @returns {string} the Responses endpoint, keeping any query from the base url
+ * @returns {string} the Responses endpoint, keeping any query from baseUrl
  */
 const getResponsesUrl = (config) => {
-  const url = getBaseUrl(config);
+  if (!config.baseUrl) {
+    throw new Error("Azure OpenAI requires baseUrl (https://<resource>.openai.azure.com/openai/v1)");
+  }
+  const url = parseBaseUrl(config.baseUrl, "baseUrl");
   appendPath(url, "/responses");
   return url.toString();
 };

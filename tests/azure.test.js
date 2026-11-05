@@ -12,8 +12,6 @@ afterEach(() => {
 
 const clearEnv = () => {
   vi.stubEnv("AZURE_OPENAI_API_KEY", "");
-  vi.stubEnv("AZURE_OPENAI_BASE_URL", "");
-  vi.stubEnv("AZURE_OPENAI_ENDPOINT", "");
 };
 
 describe("azure provider", () => {
@@ -40,25 +38,28 @@ describe("azure provider", () => {
     expect(calls[0].init.headers).not.toHaveProperty("api-key");
   });
 
-  it("resolves the key from setKeys and the URL from AZURE_OPENAI_ENDPOINT", async () => {
+  it("resolves the key from setKeys", async () => {
     clearEnv();
-    vi.stubEnv("AZURE_OPENAI_ENDPOINT", "https://my-resource.openai.azure.com/");
     setKeys({ azure: "set-key" });
     const calls = mockFetchSequence([openaiResponse({ content: "ok" })]);
-    await compose(model({ model: "azure/d" }))("hi");
-    expect(calls[0].url).toBe(`${BASE}/responses`);
+    await compose(model({ model: "azure/d", baseUrl: BASE }))("hi");
     expect(calls[0].init.headers["api-key"]).toBe("set-key");
   });
 
-  it("prefers AZURE_OPENAI_BASE_URL and AZURE_OPENAI_API_KEY from the environment", async () => {
+  it("reads AZURE_OPENAI_API_KEY from the environment", async () => {
     clearEnv();
-    vi.stubEnv("AZURE_OPENAI_BASE_URL", "https://proxy.example.com/openai/v1");
-    vi.stubEnv("AZURE_OPENAI_ENDPOINT", "https://ignored.openai.azure.com");
     vi.stubEnv("AZURE_OPENAI_API_KEY", "env-key");
     const calls = mockFetchSequence([openaiResponse({ content: "ok" })]);
-    await compose(model({ model: "azure/d" }))("hi");
-    expect(calls[0].url).toBe("https://proxy.example.com/openai/v1/responses");
+    await compose(model({ model: "azure/d", baseUrl: BASE }))("hi");
     expect(calls[0].init.headers["api-key"]).toBe("env-key");
+  });
+
+  it("takes the endpoint only from baseUrl, not the environment", async () => {
+    clearEnv();
+    vi.stubEnv("AZURE_OPENAI_BASE_URL", BASE);
+    vi.stubEnv("AZURE_OPENAI_ENDPOINT", "https://my-resource.openai.azure.com");
+    mockFetchSequence([openaiResponse({ content: "never" })]);
+    await expect(compose(model({ model: "azure/d", apiKey: "k" }))("hi")).rejects.toThrow(/requires baseUrl/);
   });
 
   it("fails clearly without an endpoint or credentials", async () => {
@@ -74,22 +75,11 @@ describe("azure provider", () => {
     await expect(compose(model({ model: "azure/d", baseUrl: BASE, apiKey: "k" }))("hi")).rejects.toThrow("Azure OpenAI API error: 404 DeploymentNotFound");
   });
 
-  it("does not double /openai/v1 when AZURE_OPENAI_ENDPOINT already includes it", async () => {
-    clearEnv();
-    vi.stubEnv("AZURE_OPENAI_ENDPOINT", `${BASE}/`);
-    const calls = mockFetchSequence([openaiResponse({ content: "ok" })]);
-    await compose(model({ model: "azure/d", apiKey: "k" }))("hi");
-    expect(calls[0].url).toBe(`${BASE}/responses`);
-  });
-
   it("keeps a query string such as api-version after the /responses path", async () => {
     clearEnv();
-    const calls = mockFetchSequence([openaiResponse({ content: "a" }), openaiResponse({ content: "b" })]);
+    const calls = mockFetchSequence([openaiResponse({ content: "ok" })]);
     await compose(model({ model: "azure/d", apiKey: "k", baseUrl: `${BASE}/?api-version=preview` }))("hi");
-    vi.stubEnv("AZURE_OPENAI_ENDPOINT", "https://my-resource.openai.azure.com?api-version=preview");
-    await compose(model({ model: "azure/d", apiKey: "k" }))("hi");
     expect(calls[0].url).toBe(`${BASE}/responses?api-version=preview`);
-    expect(calls[1].url).toBe(`${BASE}/responses?api-version=preview`);
   });
 
   it("rejects a base url that is not a valid URL", async () => {
