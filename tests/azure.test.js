@@ -71,6 +71,49 @@ describe("azure provider", () => {
   it("labels API errors as Azure OpenAI", async () => {
     clearEnv();
     mockFetchSequence([new Response("DeploymentNotFound", { status: 404 })]);
-    await expect(compose(model({ model: "azure/d", baseUrl: BASE, apiKey: "k" }))("hi")).rejects.toThrow("Azure OpenAI API error: DeploymentNotFound");
+    await expect(compose(model({ model: "azure/d", baseUrl: BASE, apiKey: "k" }))("hi")).rejects.toThrow("Azure OpenAI API error: 404 DeploymentNotFound");
+  });
+
+  it("does not double /openai/v1 when AZURE_OPENAI_ENDPOINT already includes it", async () => {
+    clearEnv();
+    vi.stubEnv("AZURE_OPENAI_ENDPOINT", `${BASE}/`);
+    const calls = mockFetchSequence([openaiResponse({ content: "ok" })]);
+    await compose(model({ model: "azure/d", apiKey: "k" }))("hi");
+    expect(calls[0].url).toBe(`${BASE}/responses`);
+  });
+
+  it("accepts an api-key passed in headers, in any case, without a configured key", async () => {
+    clearEnv();
+    const calls = mockFetchSequence([openaiResponse({ content: "ok" })]);
+    await compose(model({ model: "azure/d", baseUrl: BASE, headers: { "Api-Key": "hdr-key" } }))("hi");
+    expect(calls[0].init.headers).toEqual(expect.objectContaining({ "Api-Key": "hdr-key" }));
+    expect(Object.keys(calls[0].init.headers).filter((h) => h.toLowerCase() === "api-key")).toHaveLength(1);
+  });
+
+  it("lets a header api-key replace an ambient key instead of sending both", async () => {
+    clearEnv();
+    vi.stubEnv("AZURE_OPENAI_API_KEY", "env-key");
+    const calls = mockFetchSequence([openaiResponse({ content: "ok" })]);
+    await compose(model({ model: "azure/d", baseUrl: BASE, headers: { "API-KEY": "hdr-key" } }))("hi");
+    const sent = Object.entries(calls[0].init.headers).filter(([h]) => h.toLowerCase() === "api-key");
+    expect(sent).toEqual([["API-KEY", "hdr-key"]]);
+  });
+
+  it("falls back to the configured key when the Authorization header is empty or undefined", async () => {
+    clearEnv();
+    vi.stubEnv("AZURE_OPENAI_API_KEY", "env-key");
+    const calls = mockFetchSequence([openaiResponse({ content: "a" }), openaiResponse({ content: "b" })]);
+    await compose(model({ model: "azure/d", baseUrl: BASE, headers: { Authorization: undefined } }))("hi");
+    await compose(model({ model: "azure/d", baseUrl: BASE, headers: { Authorization: "" } }))("hi");
+    for (const call of calls) expect(call.init.headers["api-key"]).toBe("env-key");
+    expect(calls[0].init.headers).not.toHaveProperty("Authorization");
+  });
+
+  it("always sends an explicit apiKey, even alongside a bearer token", async () => {
+    clearEnv();
+    const calls = mockFetchSequence([openaiResponse({ content: "ok" })]);
+    await compose(model({ model: "azure/d", baseUrl: BASE, apiKey: "explicit", headers: { Authorization: "Bearer gateway" } }))("hi");
+    expect(calls[0].init.headers["api-key"]).toBe("explicit");
+    expect(calls[0].init.headers.Authorization).toBe("Bearer gateway");
   });
 });

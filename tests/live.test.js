@@ -17,6 +17,9 @@ setKeys({
 
 const when = (...keys) => (live && keys.every((key) => process.env[key]) ? it : it.skip);
 
+// the azure provider reads its endpoint from either variable
+const azureEndpointVar = process.env.AZURE_OPENAI_BASE_URL ? "AZURE_OPENAI_BASE_URL" : "AZURE_OPENAI_ENDPOINT";
+
 describe("live inference", () => {
   when("OPENAI_API_KEY")("openai answers a basic prompt", async () => {
     const result = await compose(model({ model: "openai/gpt-4o-mini" }))("Reply with just the word: pong");
@@ -38,7 +41,7 @@ describe("live inference", () => {
   });
 
   // azure needs a resource endpoint and a deployment name as well as a key
-  when("AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT")("azure answers a basic prompt", async () => {
+  when("AZURE_OPENAI_API_KEY", azureEndpointVar, "AZURE_OPENAI_DEPLOYMENT")("azure answers a basic prompt", async () => {
     const result = await compose(model({ model: `azure/${process.env.AZURE_OPENAI_DEPLOYMENT}` }))(
       "Reply with just the word: pong",
     );

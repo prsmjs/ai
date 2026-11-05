@@ -89,7 +89,7 @@ model({ model: "openrouter/google/gemini-3.8-flash", effort: "high", headers: { 
 
 ### Azure OpenAI
 
-Everything after `azure/` is your deployment name. Requests go to the resource's v1 Responses endpoint, so tools, streaming, structured output, and `effort` behave as they do for `openai/`. Set the endpoint with `baseUrl`, or with `AZURE_OPENAI_BASE_URL` (the full `.../openai/v1` URL) or `AZURE_OPENAI_ENDPOINT` (the resource root). An API key is sent as the `api-key` header:
+Everything after `azure/` is your deployment name. Requests go to the resource's v1 Responses endpoint, so tools, streaming, structured output, and `effort` behave as they do for `openai/`. Set the endpoint with `baseUrl`, or with `AZURE_OPENAI_BASE_URL` (the full `.../openai/v1` URL) or `AZURE_OPENAI_ENDPOINT` (the resource root, or the same full URL). An API key is sent as the `api-key` header:
 
 ```js
 model({

@@ -1,5 +1,5 @@
 import { addCost, addUsage } from "../utils.js";
-import { request } from "./http.js";
+import { mergeHeaders, request } from "./http.js";
 
 /**
  * @typedef {import("../types.js").ConversationContext} ConversationContext
@@ -188,7 +188,7 @@ const handleJson = async (response, ctx) => {
 export const callChatCompletions = async ({ url, label, headers, body, transport }, ctx) => {
   const response = await request(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
+    headers: mergeHeaders({ "Content-Type": "application/json" }, headers),
     body: JSON.stringify({
       ...body,
       stream: !!ctx.stream,
