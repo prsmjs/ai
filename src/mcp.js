@@ -16,6 +16,8 @@
  * @property {() => any} transport
  * @property {string} [name]
  * @property {string} [version]
+ * @property {string} [prefix] the name the server's tools are namespaced under; the server's own name when left out, so
+ *   two connections to the same server, under different prefixes, keep their tools apart
  */
 
 /**
@@ -40,8 +42,8 @@ export const namespaced = (serverName, toolName) => {
   return `${serverName}_${toolName}`;
 };
 
-const buildTools = async (client) => {
-  const serverName = client.getServerVersion()?.name;
+const buildTools = async (client, prefix) => {
+  const serverName = prefix || client.getServerVersion()?.name;
 
   if (!serverName) {
     console.error("MCP server has no name, skipping tool creation");
@@ -81,8 +83,8 @@ export const connectMCP = async (config) => {
 
   let client = newClient();
   await client.connect(config.transport());
-  let tools = await buildTools(client);
-  const serverName = client.getServerVersion()?.name || config.name || "unknown";
+  let tools = await buildTools(client, config.prefix);
+  const serverName = config.prefix || client.getServerVersion()?.name || config.name || "unknown";
 
   return {
     get tools() {
@@ -93,7 +95,7 @@ export const connectMCP = async (config) => {
       await client.close();
       client = newClient();
       await client.connect(config.transport());
-      tools = await buildTools(client);
+      tools = await buildTools(client, config.prefix);
     },
     async close() {
       await client.close();
